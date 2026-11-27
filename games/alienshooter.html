@@ -65,4 +65,342 @@ button.play{background:var(--acc);color:#05080c;font-weight:bold;font-size:24px;
 <div id="over" class="screen hidden">
 <h1 style="color:var(--bad);text-shadow:0 0 24px #ff4d5e66">YOU DIED</h1>
 <div id="overtxt" style="font-size:20px"></div>
-<button id="bAgain" class="play">Play again
+<button id="bAgain" class="play">Play again</button>
+<button id="bMenu">Menu</button>
+</div>
+
+<script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+<script>
+(function(){
+"use strict";
+/* ---------- Data ---------- */
+var GUNS=[
+{id:"zap",name:"Zapatron",dmg:50,rate:400,price:0,color:0x7dff9b,desc:"Starter blaster. 50 damage."},
+{id:"hyper",name:"Hyper Zapatron",dmg:75,rate:300,price:100,color:0x4dd2ff,desc:"75 damage, faster fire."},
+{id:"plasma",name:"Plasma Rifle",dmg:100,rate:180,price:300,color:0xff6bd6,desc:"One-shot kills, rapid fire."}
+];
+var MAPS=[
+{id:"mars",name:"Mars Outpost",sky:0x3a1a14,fog:0x3a1a14,ground:0x8a3b22,rock:0x5c2615,desc:"Rust-red dust and tall rocks."},
+{id:"moon",name:"Moon Base",sky:0x02030a,fog:0x02030a,ground:0x6d717a,rock:0x40444d,desc:"Grey craters under black sky."},
+{id:"neon",name:"Neon Swamp",sky:0x0b0624,fog:0x0b0624,ground:0x143a33,rock:0xc02bd8,desc:"Glowing pillars in the gloom."}
+];
+var SKINS=[
+{id:"green",name:"Recruit Green",price:0,color:0x3fd16c},
+{id:"crimson",name:"Crimson Guard",price:50,color:0xd8344a},
+{id:"cyan",name:"Ice Ranger",price:50,color:0x3cc8ff},
+{id:"gold",name:"Golden Hero",price:150,color:0xffc933},
+{id:"violet",name:"Void Walker",price:100,color:0x9b59ff}
+];
+var ALIENS={
+zap:{hp:100,speed:3.2,color:0x57d65f,range:13,cd:1.8,dmg:5},
+sword:{hp:100,speed:5.2,color:0xd65f5f,range:1.9,cd:1.0,dmg:10},
+flip:{hp:100,speed:3.8,color:0x5fa8d6,range:8,cd:1.5,dmg:5}
+};
+function find(a,id){for(var i=0;i<a.length;i++)if(a[i].id===id)return a[i];return a[0];}
+
+/* ---------- Save ---------- */
+var S={gold:0,guns:["zap"],gun:"zap",skins:["green"],skin:"green",map:"mars"};
+try{var raw=localStorage.getItem("alienshooter.save");if(raw){var o=JSON.parse(raw);for(var k in o)S[k]=o[k];}}catch(e){}
+function save(){try{localStorage.setItem("alienshooter.save",JSON.stringify(S));}catch(e){}}
+
+/* ---------- Three setup ---------- */
+var renderer=new THREE.WebGLRenderer({antialias:true});
+renderer.setPixelRatio(Math.min(devicePixelRatio,2));
+renderer.setSize(innerWidth,innerHeight);
+document.body.appendChild(renderer.domElement);
+var scene=new THREE.Scene();
+var camera=new THREE.PerspectiveCamera(75,innerWidth/innerHeight,0.1,200);
+scene.add(camera);
+scene.add(new THREE.HemisphereLight(0xffffff,0x444455,0.9));
+var sun=new THREE.DirectionalLight(0xffffff,0.8);sun.position.set(20,40,10);scene.add(sun);
+addEventListener("resize",function(){renderer.setSize(innerWidth,innerHeight);camera.aspect=innerWidth/innerHeight;camera.updateProjectionMatrix();});
+
+var ARENA=46;
+var world=new THREE.Group();scene.add(world);
+var obstacles=[];
+function buildWorld(m){
+scene.remove(world);world=new THREE.Group();scene.add(world);obstacles=[];
+scene.background=new THREE.Color(m.sky);scene.fog=new THREE.Fog(m.fog,25,95);
+var g=new THREE.Mesh(new THREE.PlaneGeometry(ARENA*2+20,ARENA*2+20),new THREE.MeshLambertMaterial({color:m.ground}));
+g.rotation.x=-Math.PI/2;world.add(g);
+var seed=m.id.length*7+m.id.charCodeAt(0);
+function rnd(){seed=(seed*9301+49297)%233280;return seed/233280;}
+for(var i=0;i<22;i++){
+var x=(rnd()-.5)*ARENA*1.8,z=(rnd()-.5)*ARENA*1.8;
+if(Math.abs(x)<5&&Math.abs(z)<5)continue;
+var r=1+rnd()*1.6,h=2+rnd()*6;
+var mat=new THREE.MeshLambertMaterial({color:m.rock});
+if(m.id==="neon"){mat=new THREE.MeshBasicMaterial({color:m.rock});}
+var p=new THREE.Mesh(m.id==="neon"?new THREE.CylinderGeometry(r*.5,r*.5,h*2,8):new THREE.DodecahedronGeometry(r*1.2),mat);
+p.position.set(x,m.id==="neon"?h:r*.8,z);world.add(p);
+obstacles.push({x:x,z:z,r:m.id==="neon"?r*.5:r*1.1});
+}
+for(var j=0;j<150;j++){ /* stars / dust */
+var s=new THREE.Mesh(new THREE.SphereGeometry(.15,4,4),new THREE.MeshBasicMaterial({color:0xffffff}));
+s.position.set((rnd()-.5)*200,20+rnd()*40,(rnd()-.5)*200);world.add(s);
+}
+}
+
+/* ---------- Gun model (first person) ---------- */
+var gunModel=null;
+function buildGun(){
+if(gunModel)camera.remove(gunModel);
+var gd=find(GUNS,S.gun),sk=find(SKINS,S.skin);
+gunModel=new THREE.Group();
+var body=new THREE.Mesh(new THREE.BoxGeometry(.12,.14,.6),new THREE.MeshLambertMaterial({color:0x2b2f38}));
+var barrel=new THREE.Mesh(new THREE.CylinderGeometry(.035,.035,.4,8),new THREE.MeshBasicMaterial({color:gd.color}));
+barrel.rotation.x=Math.PI/2;barrel.position.z=-.45;
+var stripe=new THREE.Mesh(new THREE.BoxGeometry(.13,.04,.4),new THREE.MeshLambertMaterial({color:sk.color}));
+stripe.position.set(0,.08,.05);
+var hand=new THREE.Mesh(new THREE.BoxGeometry(.13,.16,.2),new THREE.MeshLambertMaterial({color:sk.color}));
+hand.position.set(0,-.12,.18);
+gunModel.add(body,barrel,stripe,hand);
+gunModel.position.set(.28,-.26,-.55);
+camera.add(gunModel);
+}
+
+/* ---------- Game state ---------- */
+var G={playing:false,paused:false,hp:100,kills:0,wave:1,aliens:[],shots:[],spawnT:0,lastShot:0,kick:0,t:0,earned:0};
+var P={x:0,z:0,yaw:0,pitch:0};
+var keys={};
+var $=function(id){return document.getElementById(id);};
+
+/* ---------- Audio ---------- */
+var AC=null;
+function beep(f,d,type,v){
+try{AC=AC||new (window.AudioContext||window.webkitAudioContext)();
+var o=AC.createOscillator(),g=AC.createGain();o.type=type||"square";o.frequency.value=f;
+g.gain.value=v||.05;g.gain.exponentialRampToValueAtTime(.0001,AC.currentTime+d);
+o.connect(g);g.connect(AC.destination);o.start();o.stop(AC.currentTime+d);}catch(e){}
+}
+
+/* ---------- Aliens ---------- */
+function mk(geo,color,x,y,z){var m=new THREE.Mesh(geo,new THREE.MeshLambertMaterial({color:color}));m.position.set(x,y,z);return m;}
+function makeAlien(type){
+var d=ALIENS[type],g=new THREE.Group();
+g.add(mk(new THREE.CylinderGeometry(.45,.55,1.3,10),d.color,0,.9,0));
+g.add(mk(new THREE.SphereGeometry(.5,12,10),d.color,0,1.85,0));
+var eyeM=new THREE.MeshBasicMaterial({color:0x000000});
+[-.2,.2].forEach(function(x){var e=new THREE.Mesh(new THREE.SphereGeometry(.12,8,6),eyeM);e.position.set(x,1.95,-.38);e.scale.set(1,1.5,.6);g.add(e);});
+[-.1,.1].forEach(function(x){g.add(mk(new THREE.CylinderGeometry(.02,.02,.5,4),d.color,x*3,2.5,0));g.add(mk(new THREE.SphereGeometry(.07,6,6),0xffee66,x*3,2.78,0));});
+var arm=new THREE.Group();arm.position.set(.55,1.1,-.2);
+if(type==="zap"){arm.add(mk(new THREE.BoxGeometry(.15,.2,.7),0x333a44,0,0,-.3));arm.add(mk(new THREE.SphereGeometry(.1,8,6),0x66ffcc,0,0,-.7));}
+if(type==="sword"){var bl=mk(new THREE.BoxGeometry(.08,.08,1.4),0xdfe6ee,0,0,-.7);arm.add(bl);arm.add(mk(new THREE.BoxGeometry(.4,.08,.08),0x886633,0,0,-.05));}
+if(type==="flip"){arm.add(mk(new THREE.BoxGeometry(.3,.05,.6),0xff8844,0,0,-.4));}
+g.add(arm);g.userData.arm=arm;
+return g;
+}
+function spawnAlien(){
+var r=Math.random(),type=r<.4?"zap":r<.7?"sword":"flip";
+var a=Math.random()*Math.PI*2,dist=26+Math.random()*10;
+var x=Math.max(-ARENA,Math.min(ARENA,P.x+Math.cos(a)*dist)),z=Math.max(-ARENA,Math.min(ARENA,P.z+Math.sin(a)*dist));
+var d=ALIENS[type],mesh=makeAlien(type);mesh.position.set(x,0,z);scene.add(mesh);
+var al={type:type,hp:d.hp,mesh:mesh,x:x,z:z,cd:1+Math.random()*d.cd,strafe:Math.random()<.5?1:-1,hit:0,swing:0};
+mesh.userData.alien=al;G.aliens.push(al);
+}
+function killAlien(al){
+scene.remove(al.mesh);G.aliens.splice(G.aliens.indexOf(al),1);
+G.kills++;G.earned+=10;S.gold+=10;save();beep(180,.25,"sawtooth",.06);
+if(G.kills%5===0){G.wave++;}
+updateHUD();
+}
+function hurt(n){
+if(!G.playing)return;
+G.hp=Math.max(0,G.hp-n);beep(90,.2,"sawtooth",.08);
+var f=$("flash");f.style.opacity=.9;setTimeout(function(){f.style.opacity=0;},120);
+updateHUD();
+if(G.hp<=0)die();
+}
+function shootAt(a,type,dmg){
+var geo=type==="flip"?new THREE.BoxGeometry(.45,.06,.9):new THREE.SphereGeometry(.2,8,8);
+var m=new THREE.Mesh(geo,new THREE.MeshBasicMaterial({color:type==="flip"?0xff8844:0x66ffcc}));
+m.position.set(a.x,1.4,a.z);scene.add(m);
+var dx=P.x-a.x,dz=P.z-a.z,dy=-0.1,l=Math.sqrt(dx*dx+dz*dz+dy*dy),sp=type==="flip"?14:22;
+G.shots.push({m:m,vx:dx/l*sp,vy:dy/l*sp,vz:dz/l*sp,dmg:dmg,life:3,spin:type==="flip"});
+}
+
+/* ---------- Player shooting ---------- */
+var ray=new THREE.Raycaster();
+function fire(){
+var gd=find(GUNS,S.gun),now=performance.now();
+if(now-G.lastShot<gd.rate)return;G.lastShot=now;G.kick=1;beep(520,.08,"square",.04);
+ray.setFromCamera({x:0,y:0},camera);
+var meshes=G.aliens.map(function(a){return a.mesh;});
+var hits=ray.intersectObjects(meshes,true);
+if(hits.length){
+var o=hits[0].object;while(o&&!o.userData.alien)o=o.parent;
+if(o){var al=o.userData.alien;al.hp-=gd.dmg;al.hit=.15;
+var c=$("cross");c.classList.add("hit");setTimeout(function(){c.classList.remove("hit");},100);
+if(al.hp<=0)killAlien(al);}
+}
+}
+
+/* ---------- Update loop ---------- */
+function pushOut(o,rad){
+for(var i=0;i<obstacles.length;i++){var b=obstacles[i],dx=o.x-b.x,dz=o.z-b.z,d=Math.sqrt(dx*dx+dz*dz),m=b.r+rad;
+if(d<m&&d>0.001){o.x=b.x+dx/d*m;o.z=b.z+dz/d*m;}}
+o.x=Math.max(-ARENA,Math.min(ARENA,o.x));o.z=Math.max(-ARENA,Math.min(ARENA,o.z));
+}
+function update(dt){
+G.t+=dt;
+/* player */
+var sp=(keys.ShiftLeft||keys.ShiftRight?12:8)*dt,fx=-Math.sin(P.yaw),fz=-Math.cos(P.yaw),rx=Math.cos(P.yaw),rz=-Math.sin(P.yaw);
+var mx=(keys.KeyD?1:0)-(keys.KeyA?1:0),mz=(keys.KeyW?1:0)-(keys.KeyS?1:0);
+if(mx||mz){var l=Math.sqrt(mx*mx+mz*mz);P.x+=(fx*mz+rx*mx)/l*sp;P.z+=(fz*mz+rz*mx)/l*sp;}
+pushOut(P,.5);
+camera.position.set(P.x,1.7+Math.sin(G.t*10)*((mx||mz)?.04:0),P.z);
+camera.rotation.set(P.pitch,P.yaw,0,"YXZ");
+G.kick=Math.max(0,G.kick-dt*8);gunModel.position.z=-.55+G.kick*.12;
+if(mouseDown)fire();
+/* spawning */
+G.spawnT-=dt;
+var cap=3+G.wave*2;
+if(G.spawnT<=0&&G.aliens.length<cap){spawnAlien();G.spawnT=Math.max(.8,2.8-G.wave*.2);}
+/* aliens */
+G.aliens.forEach(function(a){
+var d=ALIENS[a.type],dx=P.x-a.x,dz=P.z-a.z,dist=Math.sqrt(dx*dx+dz*dz)||1,nx=dx/dist,nz=dz/dist;
+var s=d.speed*dt;
+if(a.type==="sword"){if(dist>d.range*.8){a.x+=nx*s;a.z+=nz*s;}}
+else{
+if(dist>d.range){a.x+=nx*s;a.z+=nz*s;}
+else if(dist<d.range*.6){a.x-=nx*s;a.z-=nz*s;}
+else{a.x+=-nz*a.strafe*s*.7;a.z+=nx*a.strafe*s*.7;}
+}
+pushOut(a,.6);
+a.cd-=dt;
+if(a.cd<=0&&dist<=d.range+.2){
+a.cd=d.cd;a.swing=.3;
+if(a.type==="sword"){hurt(d.dmg);}else shootAt(a,a.type,d.dmg);
+}
+a.swing=Math.max(0,a.swing-dt);a.hit=Math.max(0,a.hit-dt);
+a.mesh.position.set(a.x,Math.abs(Math.sin(G.t*6+a.x))*.12,a.z);
+a.mesh.rotation.y=Math.atan2(dx,dz)+Math.PI;
+a.mesh.userData.arm.rotation.x=-a.swing*4;
+a.mesh.scale.setScalar(a.hit>0?1.15:1);
+});
+/* alien projectiles */
+for(var i=G.shots.length-1;i>=0;i--){
+var p=G.shots[i];p.m.position.x+=p.vx*dt;p.m.position.y+=p.vy*dt;p.m.position.z+=p.vz*dt;p.life-=dt;
+if(p.spin){p.m.rotation.y+=dt*14;p.m.rotation.x+=dt*6;}
+var ex=p.m.position.x-P.x,ey=p.m.position.y-1.4,ez=p.m.position.z-P.z;
+if(ex*ex+ey*ey+ez*ez<.9){hurt(p.dmg);p.life=0;}
+if(p.life<=0){scene.remove(p.m);G.shots.splice(i,1);}
+}
+updateHUD();
+}
+
+/* ---------- HUD ---------- */
+function updateHUD(){
+$("hpfill").style.width=G.hp+"%";
+$("hpfill").style.background=G.hp>50?"":G.hp>25?"#ffb02e":"#ff4d5e";
+$("hptxt").textContent="Health "+G.hp+" / 100";
+$("gold").textContent="Gold "+S.gold;
+$("wave").textContent=G.wave;$("kills").textContent=G.kills;
+$("gunlabel").textContent=find(GUNS,S.gun).name+" · "+find(GUNS,S.gun).dmg+" dmg";
+}
+
+/* ---------- Flow ---------- */
+function show(id,on){$(id).classList.toggle("hidden",!on);}
+function startGame(){
+buildWorld(find(MAPS,S.map));buildGun();
+G.aliens.forEach(function(a){scene.remove(a.mesh);});G.shots.forEach(function(s){scene.remove(s.m);});
+G.aliens=[];G.shots=[];G.hp=100;G.kills=0;G.wave=1;G.earned=0;G.spawnT=1;G.t=0;
+P.x=0;P.z=0;P.yaw=0;P.pitch=0;
+G.playing=true;G.paused=false;
+show("menu",false);show("sub",false);show("over",false);show("pause",false);$("hud").style.display="block";
+updateHUD();renderer.domElement.requestPointerLock();
+}
+function die(){
+G.playing=false;document.exitPointerLock();$("hud").style.display="none";
+$("overtxt").innerHTML="Kills: "+G.kills+" · Wave "+G.wave+"<br><span style='color:var(--gold)'>+"+G.earned+" gold earned</span>";
+show("over",true);
+}
+function toMenu(){
+G.playing=false;document.exitPointerLock();$("hud").style.display="none";
+show("over",false);show("pause",false);show("sub",false);show("menu",true);
+$("menugold").textContent="Gold: "+S.gold;
+G.aliens.forEach(function(a){scene.remove(a.mesh);});G.shots.forEach(function(s){scene.remove(s.m);});G.aliens=[];G.shots=[];
+buildWorld(find(MAPS,S.map));buildGun();
+}
+document.addEventListener("pointerlockchange",function(){
+if(!document.pointerLockElement&&G.playing){G.paused=true;show("pause",true);}
+});
+
+/* ---------- Sub menus ---------- */
+var subMode="";
+function row(swatch,title,desc,btn){return '<div class="item"><div>'+swatch+'<b>'+title+'</b><small>'+desc+'</small></div>'+btn+'</div>';}
+function openSub(mode){
+subMode=mode;show("menu",false);show("sub",true);renderSub();
+}
+function renderSub(){
+var h="",t="";
+var gold='<div style="color:var(--gold);margin-bottom:6px">Gold: '+S.gold+'</div>';
+if(subMode==="shop"){
+t="Gun Shop";
+GUNS.forEach(function(g){
+var own=S.guns.indexOf(g.id)>=0,eq=S.gun===g.id;
+var b=eq?'<button disabled>Equipped</button>':own?'<button data-a="equip" data-i="'+g.id+'">Equip</button>':'<button data-a="buy" data-i="'+g.id+'"'+(S.gold<g.price?' disabled':'')+'>Buy '+g.price+'</button>';
+h+=row('<span class="sw" style="background:#'+g.color.toString(16).padStart(6,"0")+'"></span>',g.name,g.desc+" Fire every "+g.rate+"ms.",b);
+});
+}else if(subMode==="map"){
+t="Choose a map";
+MAPS.forEach(function(m){
+var b=S.map===m.id?'<button disabled>Selected</button>':'<button data-a="map" data-i="'+m.id+'">Select</button>';
+h+=row('<span class="sw" style="background:#'+m.ground.toString(16).padStart(6,"0")+'"></span>',m.name,m.desc,b);
+});
+}else{
+t="Skin Changer";
+SKINS.forEach(function(s){
+var own=S.skins.indexOf(s.id)>=0,eq=S.skin===s.id;
+var b=eq?'<button disabled>Wearing</button>':own?'<button data-a="wear" data-i="'+s.id+'">Wear</button>':'<button data-a="buyskin" data-i="'+s.id+'"'+(S.gold<s.price?' disabled':'')+'>Buy '+s.price+'</button>';
+h+=row('<span class="sw" style="background:#'+s.color.toString(16).padStart(6,"0")+'"></span>',s.name,"Colors your gloves and gun trim.",b);
+});
+}
+$("subtitle").textContent=t;$("sublist").innerHTML=(subMode==="shop"||subMode==="skin"?gold:"")+h;
+}
+$("sublist").addEventListener("click",function(e){
+var a=e.target.getAttribute("data-a"),i=e.target.getAttribute("data-i");if(!a)return;
+if(a==="buy"){var g=find(GUNS,i);if(S.gold>=g.price){S.gold-=g.price;S.guns.push(i);S.gun=i;}}
+if(a==="equip")S.gun=i;
+if(a==="map")S.map=i;
+if(a==="buyskin"){var s=find(SKINS,i);if(S.gold>=s.price){S.gold-=s.price;S.skins.push(i);S.skin=i;}}
+if(a==="wear")S.skin=i;
+save();buildGun();renderSub();
+});
+
+/* ---------- Input ---------- */
+var mouseDown=false;
+$("bPlay").onclick=startGame;$("bAgain").onclick=startGame;
+$("bShop").onclick=function(){openSub("shop");};
+$("bMap").onclick=function(){openSub("map");};
+$("bSkin").onclick=function(){openSub("skin");};
+$("bBack").onclick=toMenu;$("bMenu").onclick=toMenu;$("bQuit").onclick=toMenu;
+$("bResume").onclick=function(){G.paused=false;show("pause",false);renderer.domElement.requestPointerLock();};
+addEventListener("keydown",function(e){keys[e.code]=true;});
+addEventListener("keyup",function(e){keys[e.code]=false;});
+addEventListener("mousedown",function(e){if(G.playing&&!G.paused&&e.button===0)mouseDown=true;});
+addEventListener("mouseup",function(){mouseDown=false;});
+addEventListener("mousemove",function(e){
+if(!G.playing||G.paused||!document.pointerLockElement)return;
+P.yaw-=e.movementX*.0022;P.pitch=Math.max(-1.4,Math.min(1.4,P.pitch-e.movementY*.0022));
+});
+
+/* ---------- Main loop ---------- */
+var last=performance.now();
+function loop(now){
+requestAnimationFrame(loop);
+var dt=Math.min(.05,(now-last)/1000);last=now;
+if(G.playing&&!G.paused)update(dt);
+else if(!G.playing){
+G.t+=dt;camera.position.set(Math.cos(G.t*.15)*22,6,Math.sin(G.t*.15)*22);
+camera.lookAt(0,1.5,0);
+}
+renderer.render(scene,camera);
+}
+buildWorld(find(MAPS,S.map));buildGun();
+$("menugold").textContent="Gold: "+S.gold;
+requestAnimationFrame(loop);
+})();
+</script>
+</body>
+</html>
