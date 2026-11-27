@@ -1,0 +1,168 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, user-scalable=no">
+<title>Slope</title>
+<style>
+*{box-sizing:border-box}
+html,body{margin:0;height:100%;overflow:hidden;background:#111;color:#fff;font-family:"Trebuchet MS","Segoe UI",sans-serif;touch-action:none;user-select:none}
+canvas{display:block}
+#score{position:fixed;top:14px;left:18px;font-size:30px;font-weight:bold;text-shadow:0 2px 8px #0008}
+#best{position:fixed;top:18px;right:18px;font-size:16px;opacity:.85;text-shadow:0 2px 8px #0008}
+#ov{position:fixed;inset:0;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:12px;text-align:center;background:#0006;padding:20px}
+#ov.hidden{display:none}
+h1{margin:0;font-size:clamp(56px,16vw,140px);letter-spacing:6px;text-shadow:0 0 30px #fff6}
+#msg{font-size:20px}
+button{font:inherit;font-size:22px;font-weight:bold;padding:12px 40px;border:3px solid #fff;border-radius:8px;background:#fff;color:#111;cursor:pointer}
+small{opacity:.75}
+</style>
+</head>
+<body>
+<div id="score">0</div><div id="best"></div>
+<div id="ov">
+  <h1 id="title">SLOPE</h1>
+  <div id="msg">Stay on the track. Dodge the blocks.</div>
+  <button id="go">Play</button>
+  <small>A / D or ← / → to steer · on a phone, tap the left or right side</small>
+</div>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+<script>
+(function(){
+"use strict";
+var ROW=4,COLS=5,CW=2,HALF=5,AHEAD=48;
+var $=function(i){return document.getElementById(i);};
+var best=0;try{best=+localStorage.getItem("slope.best")||0;}catch(e){}
+$("best").textContent="Best "+best;
+
+var renderer=new THREE.WebGLRenderer({antialias:true});
+renderer.setPixelRatio(Math.min(devicePixelRatio,2));
+renderer.setSize(innerWidth,innerHeight);
+document.body.appendChild(renderer.domElement);
+var scene=new THREE.Scene();
+scene.background=new THREE.Color(0x101830);
+scene.fog=new THREE.Fog(0x101830,40,150);
+var camera=new THREE.PerspectiveCamera(70,innerWidth/innerHeight,.1,300);
+scene.add(new THREE.HemisphereLight(0xffffff,0x334466,.95));
+var sun=new THREE.DirectionalLight(0xffffff,.7);sun.position.set(-8,20,10);scene.add(sun);
+addEventListener("resize",function(){renderer.setSize(innerWidth,innerHeight);camera.aspect=innerWidth/innerHeight;camera.updateProjectionMatrix();});
+
+var gTile=new THREE.BoxGeometry(1.94,.5,3.94),gObs=new THREE.BoxGeometry(1.9,2,1.9);
+var matA=new THREE.MeshLambertMaterial(),matB=new THREE.MeshLambertMaterial(),matO=new THREE.MeshLambertMaterial();
+var ball=new THREE.Mesh(new THREE.IcosahedronGeometry(.5,1),new THREE.MeshLambertMaterial({color:0xffffff,flatShading:true}));
+scene.add(ball);
+
+var S={mode:"menu",x:0,y:.5,z:0,vx:0,vy:0,speed:16,falling:false,nextRow:0,safe:2,rows:{},diedAt:0};
+var keyL=false,keyR=false,touchDir=0;
+
+function genRow(i){
+  var floor=[1,1,1,1,1],obs=[0,0,0,0,0];
+  if(i>=8&&i%5!==0){
+    var d=Math.min(1,i/450),pg=.14+.3*d,po=.1+.28*d;
+    for(var c=0;c<COLS;c++){
+      if(c===S.safe)continue;
+      var r=Math.random();
+      if(r<pg)floor[c]=0;else if(r<pg+po)obs[c]=1;
+    }
+  }else if(i>=8&&i%5===0){
+    var ns=S.safe+(Math.random()<.5?-1:1);
+    if(ns>=0&&ns<COLS)S.safe=ns;
+  }
+  var g=new THREE.Group();
+  for(var k=0;k<COLS;k++){
+    var x=-4+k*CW;
+    if(floor[k]){var t=new THREE.Mesh(gTile,i%2?matA:matB);t.position.set(x,-.25,0);g.add(t);}
+    if(obs[k]){var o=new THREE.Mesh(gObs,matO);o.position.set(x,1,0);g.add(o);}
+  }
+  g.position.z=-i*ROW;scene.add(g);
+  S.rows[i]={g:g,floor:floor,obs:obs};
+}
+function fillRows(ri){
+  while(S.nextRow<ri+AHEAD){genRow(S.nextRow);S.nextRow++;}
+  for(var k in S.rows){if(+k<ri-6){scene.remove(S.rows[k].g);delete S.rows[k];}}
+}
+function reset(){
+  for(var k in S.rows)scene.remove(S.rows[k].g);
+  S.rows={};S.nextRow=0;S.safe=2;S.x=0;S.y=.5;S.z=0;S.vx=0;S.vy=0;S.speed=16;S.falling=false;
+  ball.rotation.set(0,0,0);fillRows(0);
+}
+function start(){
+  if(performance.now()-S.diedAt<500)return;
+  reset();S.mode="play";$("ov").classList.add("hidden");
+}
+function die(){
+  S.mode="dead";S.diedAt=performance.now();
+  var sc=score();
+  if(sc>best){best=sc;try{localStorage.setItem("slope.best",best);}catch(e){}}
+  $("best").textContent="Best "+best;
+  $("title").textContent="CRASHED";$("msg").textContent="Score "+sc;$("go").textContent="Try again";
+  $("ov").classList.remove("hidden");
+}
+function score(){return Math.floor(-S.z/4);}
+
+function colors(){
+  var h=(-S.z*.0006)%1;
+  matA.color.setHSL(h,.55,.36);matB.color.setHSL(h,.55,.29);
+  matO.color.setHSL((h+.5)%1,.9,.55);
+  scene.background.setHSL(h,.5,.14);scene.fog.color.setHSL(h,.5,.14);
+}
+
+function update(dt){
+  var dir=(keyR?1:0)-(keyL?1:0)+touchDir;dir=Math.max(-1,Math.min(1,dir));
+  S.speed=Math.min(44,S.speed+dt*.6);
+  var target=dir*(8+S.speed*.18);
+  S.vx+=(target-S.vx)*Math.min(1,dt*9);
+  S.x+=S.vx*dt;S.z-=S.speed*dt;
+  ball.rotation.x-=S.speed*dt/.5;ball.rotation.z-=S.vx*dt/.5;
+  var ri=Math.round(-S.z/ROW);fillRows(ri);
+  if(!S.falling){
+    var row=S.rows[ri],col=Math.floor((S.x+HALF)/CW);
+    var has=S.x>=-HALF&&S.x<=HALF&&row&&row.floor[col];
+    if(!has)S.falling=true;
+    for(var r=ri-1;r<=ri+1&&!S.falling;r++){
+      var rw=S.rows[r];if(!rw)continue;
+      for(var c=0;c<COLS;c++){
+        if(rw.obs[c]&&Math.abs(S.x-(-4+c*CW))<1.4&&Math.abs(S.z+r*ROW)<1.4){die();return;}
+      }
+    }
+  }
+  if(S.falling){S.vy-=45*dt;S.y+=S.vy*dt;if(S.y<-14){die();return;}}
+  ball.position.set(S.x,S.y,S.z);
+  colors();
+  $("score").textContent=score();
+}
+function cam(){
+  camera.position.set(S.x*.6,3.4,S.z+7.5);
+  camera.lookAt(S.x*.8,.2,S.z-12);
+}
+
+var last=performance.now();
+function loop(now){
+  requestAnimationFrame(loop);
+  var dt=Math.min(.05,(now-last)/1000);last=now;
+  if(S.mode==="play")update(dt);
+  else if(S.mode==="menu"){ball.rotation.x-=dt*2;ball.position.set(S.x,S.y,S.z);}
+  cam();
+  renderer.render(scene,camera);
+}
+reset();colors();ball.position.set(0,.5,0);
+requestAnimationFrame(loop);
+
+/* input */
+$("go").onclick=function(e){e.stopPropagation();start();};
+addEventListener("keydown",function(e){
+  if(e.code==="ArrowLeft"||e.code==="KeyA")keyL=true;
+  if(e.code==="ArrowRight"||e.code==="KeyD")keyR=true;
+  if((e.code==="Space"||e.code==="Enter")&&S.mode!=="play")start();
+});
+addEventListener("keyup",function(e){
+  if(e.code==="ArrowLeft"||e.code==="KeyA")keyL=false;
+  if(e.code==="ArrowRight"||e.code==="KeyD")keyR=false;
+});
+renderer.domElement.addEventListener("pointerdown",function(e){touchDir=e.clientX<innerWidth/2?-1:1;});
+addEventListener("pointerup",function(){touchDir=0;});
+addEventListener("blur",function(){keyL=keyR=false;touchDir=0;});
+})();
+</script>
+</body>
+</html>
