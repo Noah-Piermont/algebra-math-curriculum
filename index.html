@@ -1,0 +1,121 @@
+<!DOCTYPE html>
+
+<html lang="en">
+
+<head>
+
+  <meta charset="UTF-8">
+
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+
+  <title>Algebra Math Curriculum</title>
+
+  <style>
+
+    body {
+
+      background: #171326;
+
+      color: white;
+
+      font-family: Arial, sans-serif;
+
+      text-align: center;
+
+      padding: 40px 15px;
+
+    }
+
+    h1 {
+
+      color: #ff66cc;
+
+      font-size: 42px;
+
+      text-shadow: 0 0 15px #ff66cc;
+
+    }
+
+    .game {
+
+      background: #28203d;
+
+      border: 2px solid #b8ff5c;
+
+      border-radius: 20px;
+
+      padding: 25px;
+
+      max-width: 400px;
+
+      margin: 30px auto;
+
+    }
+
+    button {
+
+      background: #b8ff5c;
+
+      color: #171326;
+
+      border: none;
+
+      border-radius: 12px;
+
+      padding: 15px 25px;
+
+      font-size: 18px;
+
+      font-weight: bold;
+
+      cursor: pointer;
+
+    }
+
+    button:hover {
+
+      background: #ff66cc;
+
+    }
+
+  </style>
+
+</head>
+
+<body>
+
+  <h1>ALGEBRA MATH CURRICULUM</h1>
+
+  <p>Welcome to your personal arcade!</p>
+
+  <div class="game">
+
+    <h2>✨ Click Challenge ✨</h2>
+
+    <p>Click the button and see how high you can score!</p>
+
+    <h2 id="score">Score: 0</h2>
+
+    <button onclick="addPoint()">CLICK ME!</button>
+
+  </div>
+
+  <script>
+
+    let score = 0;
+
+    function addPoint() {
+
+      score++;
+
+      document.getElementById("score").textContent =
+
+        "Score: " + score;
+
+    }
+
+  </script>
+
+</body>
+
+</html>
