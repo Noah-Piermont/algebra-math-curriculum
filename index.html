@@ -12,69 +12,121 @@
 
   <style>
 
+    * {
+
+      box-sizing: border-box;
+
+    }
+
     body {
 
-      background: #171326;
+      margin: 0;
 
-      color: white;
+      background: #11121c;
+
+      color: #f5f1ff;
 
       font-family: Arial, sans-serif;
 
+    }
+
+    header {
+
+      padding: 25px 20px;
+
       text-align: center;
 
-      padding: 40px 15px;
+      border-bottom: 1px solid #353545;
+
+      color: #c6ff65;
+
+      font-size: 14px;
+
+      font-weight: bold;
+
+      letter-spacing: 2px;
+
+    }
+
+    main {
+
+      min-height: 85vh;
+
+      display: flex;
+
+      flex-direction: column;
+
+      justify-content: center;
+
+      align-items: center;
+
+      text-align: center;
+
+      padding: 30px 20px;
 
     }
 
     h1 {
 
-      color: #ff66cc;
+      font-size: clamp(32px, 7vw, 65px);
 
-      font-size: 42px;
+      max-width: 900px;
 
-      text-shadow: 0 0 15px #ff66cc;
+      margin-bottom: 20px;
 
-    }
-
-    .game {
-
-      background: #28203d;
-
-      border: 2px solid #b8ff5c;
-
-      border-radius: 20px;
-
-      padding: 25px;
-
-      max-width: 400px;
-
-      margin: 30px auto;
+      line-height: 1.15;
 
     }
 
-    button {
+    .welcome {
 
-      background: #b8ff5c;
-
-      color: #171326;
-
-      border: none;
-
-      border-radius: 12px;
-
-      padding: 15px 25px;
+      color: #b8b5c9;
 
       font-size: 18px;
 
-      font-weight: bold;
-
-      cursor: pointer;
+      margin-bottom: 40px;
 
     }
 
-    button:hover {
+    .catalog-button {
+
+      display: inline-block;
+
+      background: #c6ff65;
+
+      color: #171820;
+
+      padding: 18px 30px;
+
+      border-radius: 12px;
+
+      text-decoration: none;
+
+      font-size: 16px;
+
+      font-weight: bold;
+
+      transition: 0.2s;
+
+    }
+
+    .catalog-button:hover {
 
       background: #ff66cc;
+
+      transform: translateY(-3px);
+
+    }
+
+    footer {
+
+      text-align: center;
+
+      padding: 20px;
+
+      color: #77778c;
+
+      font-size: 12px;
 
     }
 
@@ -84,37 +136,35 @@
 
 <body>
 
-  <h1>ALGEBRA MATH CURRICULUM</h1>
+  <header>
 
-  <p>Welcome to your personal arcade!</p>
+    ALGEBRA MATH CURRICULUM
 
-  <div class="game">
+  </header>
 
-    <h2>✨ Click Challenge ✨</h2>
+  <main>
 
-    <p>Click the button and see how high you can score!</p>
+    <h1>ALGEBRA MATH CURRICULUM</h1>
 
-    <h2 id="score">Score: 0</h2>
+    <p class="welcome">
 
-    <button onclick="addPoint()">CLICK ME!</button>
+      Welcome to your destination for browser games.
 
-  </div>
+    </p>
 
-  <script>
+    <a class="catalog-button" href="catalog.html">
 
-    let score = 0;
+      GO TO GAME CATALOG →
 
-    function addPoint() {
+    </a>
 
-      score++;
+  </main>
 
-      document.getElementById("score").textContent =
+  <footer>
 
-        "Score: " + score;
+    ALGEBRA MATH CURRICULUM
 
-    }
-
-  </script>
+  </footer>
 
 </body>
 
