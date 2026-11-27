@@ -1,0 +1,461 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>CarDrift</title>
+<style>
+:root{
+--ink:#17122b; --paper:#f2f0ff; --gold:#ffd21f; --mint:#3ee0c1; --hot:#ff5a36;
+}
+*{box-sizing:border-box;margin:0}
+html,body{height:100%;background:var(--ink);overflow:hidden;font-family:"Trebuchet MS",Verdana,sans-serif;color:var(--paper)}
+canvas{display:block;width:100%;height:100%}
+.hud{position:fixed;top:0;left:0;right:0;display:flex;justify-content:space-between;padding:14px 18px;pointer-events:none}
+.hud div{background:rgba(23,18,43,.72);border-radius:10px;padding:8px 14px;min-width:120px}
+.hud b{display:block;font-size:26px;font-variant-numeric:tabular-nums;line-height:1.1}
+.hud small{font-size:12px;opacity:.75}
+#mid{text-align:center}
+#chip{position:fixed;top:88px;left:50%;transform:translateX(-50%);background:var(--gold);color:var(--ink);
+font:900 italic 22px "Arial Black",Impact,sans-serif;padding:6px 16px;border-radius:999px;opacity:0;transition:opacity .15s;pointer-events:none}
+#chip.on{opacity:1}
+#chip.bad{background:var(--hot);color:#fff}
+#big{position:fixed;inset:0;display:grid;place-items:center;font:900 italic 120px "Arial Black",Impact,sans-serif;
+color:var(--gold);text-shadow:0 6px 0 var(--ink);pointer-events:none}
+.overlay{position:fixed;inset:0;display:grid;place-items:center;background:rgba(23,18,43,.86);padding:16px}
+.overlay.hide,#hud.hide,#big.hide{display:none}
+.card{max-width:460px;width:100%;text-align:center}
+h1{font:900 italic clamp(48px,12vw,84px)/0.95 "Arial Black",Impact,sans-serif;color:var(--gold);transform:skewX(-8deg);letter-spacing:-1px}
+h2{font:900 italic 40px "Arial Black",Impact,sans-serif;color:var(--gold)}
+p.sub{margin:10px 0 24px;opacity:.85}
+button{display:block;width:100%;margin:10px 0;padding:16px;border:0;border-radius:12px;font:700 18px "Trebuchet MS",sans-serif;
+cursor:pointer;background:var(--paper);color:var(--ink)}
+button small{display:block;font-weight:400;font-size:13px;opacity:.7;margin-top:2px}
+button.alt{background:var(--mint)}
+button:hover,button:focus-visible{outline:3px solid var(--gold);outline-offset:2px}
+.keys{margin-top:18px;font-size:14px;line-height:1.9;opacity:.9}
+kbd{background:#2c2550;border:1px solid #4a3f85;border-radius:6px;padding:2px 8px;font:inherit}
+.res{margin:16px 0;font-size:18px;line-height:1.7;font-variant-numeric:tabular-nums}
+.res span{color:var(--mint)}
+</style>
+</head>
+<body>
+<canvas id="c"></canvas>
+
+<div class="hud hide" id="hud">
+<div><small>Speed</small><b id="spd">0</b></div>
+<div id="mid"><small id="midL">Lap</small><b id="midV">1/3</b></div>
+<div style="text-align:right"><small id="rL">Best</small><b id="rV">--</b></div>
+</div>
+<div id="chip"></div>
+<div id="big" class="hide"></div>
+
+<div class="overlay" id="menu">
+<div class="card">
+<h1>CarDrift</h1>
+<p class="sub">Pick a mode and slide it sideways.</p>
+<button class="alt" id="bRace">Race track<small>3 laps, corners, kerbs and a chicane</small></button>
+<button id="bDrift">Drift field<small>90 seconds, random cones, chain your slides</small></button>
+<div class="keys"><kbd>W</kbd> gas &nbsp; <kbd>S</kbd> brake &nbsp; <kbd>A</kbd> <kbd>D</kbd> steer &nbsp; <kbd>Shift</kbd> drift<br>
+<kbd>R</kbd> restart &nbsp; <kbd>Esc</kbd> menu &nbsp; Arrow keys work too</div>
+</div>
+</div>
+
+<div class="overlay hide" id="end">
+<div class="card">
+<h2 id="eT">Finished</h2>
+<div class="res" id="eR"></div>
+<button class="alt" id="bAgain">Go again</button>
+<button id="bMenu">Main menu</button>
+</div>
+</div>
+
+<script>
+(() => {
+"use strict";
+const $ = id => document.getElementById(id);
+const cv = $("c"), ctx = cv.getContext("2d");
+let W = 0, H = 0, dpr = 1;
+function resize(){
+dpr = Math.min(window.devicePixelRatio || 1, 2);
+W = innerWidth; H = innerHeight;
+cv.width = W * dpr; cv.height = H * dpr;
+}
+addEventListener("resize", resize); resize();
+
+// ---------- input ----------
+const keys = {};
+addEventListener("keydown", e => {
+keys[e.code] = true;
+if (["ArrowUp","ArrowDown","ArrowLeft","ArrowRight","Space"].includes(e.code)) e.preventDefault();
+if (e.code === "KeyR" && mode) startMode(mode);
+if (e.code === "Escape") showMenu();
+if (e.code === "KeyP" && (state === "play" || state === "pause")) state = state === "play" ? "pause" : "play";
+});
+addEventListener("keyup", e => keys[e.code] = false);
+addEventListener("blur", () => { for (const k in keys) keys[k] = false; });
+const down = (...c) => c.some(k => keys[k]);
+
+// ---------- helpers ----------
+const rand32 = a => () => { a |= 0; a = a + 0x6D2B79F5 | 0; let t = Math.imul(a ^ a >>> 15, 1 | a);
+t = t + Math.imul(t ^ t >>> 7, 61 | t) ^ t; return ((t ^ t >>> 14) >>> 0) / 4294967296; };
+const clamp = (v, a, b) => Math.max(a, Math.min(b, v));
+const fmt = t => { const m = Math.floor(t / 60), s = t - m * 60; return m + ":" + (s < 10 ? "0" : "") + s.toFixed(2); };
+const store = {
+get(k){ try { return parseFloat(localStorage.getItem("cardrift_" + k)) || 0; } catch(e){ return 0; } },
+set(k, v){ try { localStorage.setItem("cardrift_" + k, v); } catch(e){} }
+};
+
+// ---------- game state ----------
+let mode = null, state = "menu", clock = 0, countdown = 0;
+let car, skids, smoke, camX = 0, camY = 0;
+let score, pending, combo, driftT, calm, hits, chipMsg = 0;
+let lap, lapStart, lapTimes, bestLap, idx, prog, track, cones, cells, DRIFT_TIME = 90, LAPS = 3;
+
+// ---------- race track ----------
+const CTRL = [[0,0],[500,-20],[1000,0],[1400,-120],[1700,-50],[1850,250],[1650,500],[1300,450],[1100,700],
+[1300,950],[1000,1150],[500,1050],[250,800],[500,600],[200,400],[-200,300],[-300,50]];
+function buildTrack(){
+const P = [], n = CTRL.length;
+for (let i = 0; i < n; i++){
+const p0 = CTRL[(i + n - 1) % n], p1 = CTRL[i], p2 = CTRL[(i + 1) % n], p3 = CTRL[(i + 2) % n];
+for (let s = 0; s < 24; s++){
+const t = s / 24, t2 = t * t, t3 = t2 * t;
+const f = k => 0.5 * ((2 * p1[k]) + (-p0[k] + p2[k]) * t + (2 * p0[k] - 5 * p1[k] + 4 * p2[k] - p3[k]) * t2 + (-p0[k] + 3 * p1[k] - 3 * p2[k] + p3[k]) * t3);
+P.push({ x: f(0), y: f(1) });
+}
+}
+const path = new Path2D();
+P.forEach((p, i) => i ? path.lineTo(p.x, p.y) : path.moveTo(p.x, p.y));
+path.closePath();
+return { P, path, N: P.length, width: 150 };
+}
+
+// ---------- drift field cones ----------
+const CELL = 420;
+function genCell(cx, cy){
+const key = cx + "," + cy;
+if (cells.has(key)) return cells.get(key);
+const r = rand32((cx * 73856093) ^ (cy * 19349663) ^ seed), list = [];
+const add = (x, y) => { if (Math.hypot(x, y) > 260) list.push({ x, y, vx: 0, vy: 0, hit: false, rot: 0 }); };
+const roll = r();
+if (roll < 0.45){ // slalom line
+const a = r() * 6.28, gap = 100 + r() * 40, n = 4 + Math.floor(r() * 4);
+const sx = cx * CELL + r() * CELL, sy = cy * CELL + r() * CELL;
+for (let i = 0; i < n; i++){
+const side = i % 2 ? 1 : -1;
+add(sx + Math.cos(a) * gap * i - Math.sin(a) * 28 * side, sy + Math.sin(a) * gap * i + Math.cos(a) * 28 * side);
+}
+} else if (roll < 0.75){ // ring of cones
+const ox = cx * CELL + 100 + r() * 220, oy = cy * CELL + 100 + r() * 220, rad = 70 + r() * 40;
+for (let i = 0; i < 8; i++) add(ox + Math.cos(i * 0.785) * rad, oy + Math.sin(i * 0.785) * rad);
+} else { // scattered
+for (let i = 0, n = 2 + Math.floor(r() * 5); i < n; i++) add(cx * CELL + r() * CELL, cy * CELL + r() * CELL);
+}
+cells.set(key, list);
+return list;
+}
+let seed = 1;
+
+// ---------- start / menus ----------
+function startMode(m){
+mode = m;
+seed = Math.floor(Math.random() * 1e9);
+skids = []; smoke = [];
+score = 0; pending = 0; combo = 1; driftT = 0; calm = 0; hits = 0;
+cells = new Map();
+car = { x: 0, y: 0, a: 0, vx: 0, vy: 0, steer: 0, lastL: null, lastR: null, brake: false, drifting: false };
+if (m === "race"){
+track = track || buildTrack();
+const p = track.P[0], q = track.P[1];
+car.x = p.x; car.y = p.y; car.a = Math.atan2(q.y - p.y, q.x - p.x);
+idx = 0; prog = 0; lap = 0; lapTimes = []; bestLap = store.get("bestlap");
+$("midL").textContent = "Lap"; $("rL").textContent = "Best lap";
+} else {
+car.a = -Math.PI / 2;
+$("midL").textContent = "Time left"; $("rL").textContent = "Score";
+}
+camX = car.x; camY = car.y; clock = 0; lapStart = 0;
+countdown = 3.2; state = "count";
+$("menu").classList.add("hide"); $("end").classList.add("hide");
+$("hud").classList.remove("hide"); $("big").classList.remove("hide");
+}
+function showMenu(){
+state = "menu"; mode = null;
+$("menu").classList.remove("hide"); $("end").classList.add("hide");
+$("hud").classList.add("hide"); $("big").classList.add("hide"); $("chip").classList.remove("on");
+}
+function finish(){
+state = "end";
+bank();
+let html = "";
+if (mode === "race"){
+const total = lapTimes.reduce((a, b) => a + b, 0), best = Math.min(...lapTimes);
+if (!bestLap || best < bestLap){ bestLap = best; store.set("bestlap", best); html += "<div>New best lap!</div>"; }
+html += "Total time <span>" + fmt(total) + "</span><br>Best lap <span>" + fmt(best) + "</span><br>Drift points <span>" + Math.round(score) + "</span>";
+$("eT").textContent = "Race complete";
+} else {
+const hi = store.get("bestdrift");
+if (score > hi){ store.set("bestdrift", Math.round(score)); html += "<div>New high score!</div>"; }
+html += "Score <span>" + Math.round(score) + "</span><br>Cones knocked <span>" + hits + "</span><br>High score <span>" + Math.round(Math.max(hi, score)) + "</span>";
+$("eT").textContent = "Time's up";
+}
+$("eR").innerHTML = html;
+$("end").classList.remove("hide"); $("big").classList.add("hide");
+}
+$("bRace").onclick = () => startMode("race");
+$("bDrift").onclick = () => startMode("drift");
+$("bAgain").onclick = () => startMode(mode);
+$("bMenu").onclick = showMenu;
+
+// ---------- drift scoring ----------
+function bank(){
+if (pending > 0){ score += pending; flash("+" + Math.round(pending), false); }
+pending = 0; combo = 1; driftT = 0;
+}
+function flash(txt, bad){
+const c = $("chip"); c.textContent = txt; c.className = "on" + (bad ? " bad" : "");
+chipMsg = bad ? 1.0 : 1.4;
+}
+
+// ---------- physics ----------
+function stepCar(dt, onTrack){
+const fx = Math.cos(car.a), fy = Math.sin(car.a), rx = -fy, ry = fx;
+let vf = car.vx * fx + car.vy * fy, vl = car.vx * rx + car.vy * ry;
+const gas = down("KeyW", "ArrowUp"), brk = down("KeyS", "ArrowDown");
+const drift = down("ShiftLeft", "ShiftRight");
+const steerIn = (down("KeyD", "ArrowRight") ? 1 : 0) - (down("KeyA", "ArrowLeft") ? 1 : 0);
+
+if (gas) vf += 520 * dt;
+car.brake = false;
+if (brk){ if (vf > 20){ vf -= 900 * dt; car.brake = true; } else vf -= 300 * dt; }
+vf = Math.max(vf, -160);
+vf -= (0.3 * vf + 0.0016 * vf * Math.abs(vf)) * dt;
+if (!onTrack) vf -= 1.8 * vf * dt;
+if (drift) vf -= vf * 0.1 * dt;
+
+car.steer += (steerIn - car.steer) * Math.min(1, dt * 9);
+const speed = Math.hypot(car.vx, car.vy);
+const authority = clamp(Math.abs(vf) / 120, 0, 1) * Math.sign(vf || 1);
+car.a += car.steer * (drift ? 3.6 : 2.5) * authority * dt;
+
+// lateral grip: low while Shift is held, so the tail slides out
+let grip = drift ? 1.3 : (Math.abs(vl) > 230 ? 3.5 : 9);
+if (!onTrack) grip *= 0.6;
+const keep = Math.exp(-grip * dt), removed = vl * (1 - keep);
+vl -= removed;
+vf += Math.abs(removed) * 0.45 * Math.sign(vf || 1); // slide energy feeds the exit
+
+car.vx = fx * vf + rx * vl; car.vy = fy * vf + ry * vl;
+car.x += car.vx * dt; car.y += car.vy * dt;
+
+// drift scoring and effects
+const sp = Math.hypot(car.vx, car.vy);
+const sliding = sp > 140 && Math.abs(vl) > 70;
+car.drifting = sliding;
+if (sliding){
+calm = 0; driftT += dt;
+combo = Math.min(5, 1 + Math.floor(driftT * 1.2) * 0.5);
+pending += (Math.abs(vl) * sp / 420) * combo * dt;
+flash("Drift " + Math.round(pending) + " x" + combo.toFixed(1), false);
+chipMsg = 0.5;
+} else if (pending > 0){
+calm += dt; if (calm > 0.5) bank();
+}
+const rear = [[-14, -8], [-14, 8]];
+const marking = sliding || car.brake;
+const now = rear.map(o => ({ x: car.x + fx * o[0] + rx * o[1], y: car.y + fy * o[0] + ry * o[1] }));
+if (marking){
+if (car.lastL){ skids.push([car.lastL.x, car.lastL.y, now[0].x, now[0].y, car.lastR.x, car.lastR.y, now[1].x, now[1].y]); if (skids.length > 2200) skids.shift(); }
+car.lastL = now[0]; car.lastR = now[1];
+if (sliding && smoke.length < 160 && Math.random() < 0.8)
+smoke.push({ x: now[Math.random() < .5 ? 0 : 1].x, y: now[0].y, life: 0, vx: car.vx * 0.1, vy: car.vy * 0.1 });
+} else car.lastL = car.lastR = null;
+}
+
+function coneStep(dt){
+const cx = Math.floor(car.x / CELL), cy = Math.floor(car.y / CELL);
+const fx = Math.cos(car.a), fy = Math.sin(car.a);
+const pts = [[car.x + fx * 12, car.y + fy * 12], [car.x - fx * 12, car.y - fy * 12]];
+for (let i = -2; i <= 2; i++) for (let j = -2; j <= 2; j++){
+for (const c of genCell(cx + i, cy + j)){
+if (c.hit){
+c.x += c.vx * dt; c.y += c.vy * dt; const k = Math.exp(-2.6 * dt); c.vx *= k; c.vy *= k; c.rot += c.vx * dt * 0.05;
+continue;
+}
+for (const p of pts){
+const dx = c.x - p[0], dy = c.y - p[1], d = Math.hypot(dx, dy);
+if (d < 17){
+c.hit = true; hits++;
+c.vx = car.vx * 1.1 + dx / (d || 1) * 120; c.vy = car.vy * 1.1 + dy / (d || 1) * 120;
+car.vx *= 0.82; car.vy *= 0.82;
+if (pending > 0) flash("Combo lost", true), pending = 0, combo = 1, driftT = 0;
+else flash("Cone hit", true);
+break;
+}
+}
+}
+}
+}
+
+function raceStep(){
+const { P, N, width } = track;
+let best = 1e12, bi = idx;
+for (let k = -14; k <= 14; k++){
+const i = (idx + k + N) % N, dx = P[i].x - car.x, dy = P[i].y - car.y, d = dx * dx + dy * dy;
+if (d < best){ best = d; bi = i; }
+}
+let d = bi - idx; if (d > N / 2) d -= N; if (d < -N / 2) d += N;
+idx = bi; prog += d;
+car.onTrack = Math.sqrt(best) < width / 2 + 6;
+if (prog >= (lap + 1) * N + 4){
+lapTimes.push(clock - lapStart); lapStart = clock; lap++;
+flash("Lap " + lap + " " + fmt(lapTimes[lap - 1]), false);
+if (lap >= LAPS) finish();
+}
+}
+
+// ---------- update ----------
+function update(dt){
+if (chipMsg > 0){ chipMsg -= dt; if (chipMsg <= 0) $("chip").classList.remove("on"); }
+for (let i = smoke.length - 1; i >= 0; i--){
+const s = smoke[i]; s.life += dt; s.x += s.vx * dt; s.y += s.vy * dt;
+if (s.life > 0.9) smoke.splice(i, 1);
+}
+if (state === "count"){
+countdown -= dt;
+const n = Math.ceil(countdown);
+$("big").textContent = countdown > 0 ? n : (countdown > -0.6 ? "GO" : "");
+if (countdown <= 0 && state === "count"){ state = "play"; }
+return;
+}
+if (state !== "play") return;
+$("big").textContent = "";
+clock += dt;
+let onTrack = true;
+if (mode === "race"){ raceStep(); onTrack = car.onTrack; }
+stepCar(dt, onTrack);
+if (mode === "drift"){
+coneStep(dt);
+if (clock >= DRIFT_TIME) finish();
+}
+}
+
+// ---------- draw ----------
+function drawCar(){
+ctx.save(); ctx.translate(car.x, car.y); ctx.rotate(car.a);
+ctx.fillStyle = "rgba(0,0,0,.3)"; ctx.fillRect(-17, -7, 38, 22);
+ctx.fillStyle = "#111"; [[-11, -12], [-11, 8], [8, -12], [8, 8]].forEach(w => ctx.fillRect(w[0], w[1], 9, 5));
+ctx.fillStyle = "#ffd21f"; ctx.fillRect(-19, -9, 38, 18);
+ctx.fillStyle = "#e9b800"; ctx.fillRect(-19, -1, 38, 2);
+ctx.fillStyle = "#26214a"; ctx.fillRect(-4, -7, 13, 14);
+ctx.fillStyle = "#8fd3ff"; ctx.fillRect(5, -6, 4, 12);
+ctx.fillStyle = "#fffbe0"; ctx.fillRect(17, -8, 3, 4); ctx.fillRect(17, 4, 3, 4);
+ctx.fillStyle = car.brake ? "#ff2a2a" : "#a01818"; ctx.fillRect(-20, -8, 2, 4); ctx.fillRect(-20, 4, 2, 4);
+ctx.restore();
+}
+
+function drawCone(c){
+ctx.save(); ctx.translate(c.x, c.y);
+if (c.hit){
+ctx.rotate(c.rot);
+ctx.fillStyle = "#c94a12"; ctx.fillRect(-7, -7, 14, 14);
+ctx.fillStyle = "#ff7a2e"; ctx.beginPath(); ctx.ellipse(2, 0, 9, 5, 0, 0, 6.3); ctx.fill();
+} else {
+ctx.fillStyle = "rgba(0,0,0,.28)"; ctx.fillRect(-6, -5, 15, 15);
+ctx.fillStyle = "#d8531a"; ctx.fillRect(-8, -8, 16, 16);
+ctx.fillStyle = "#ff7a2e"; ctx.beginPath(); ctx.arc(0, 0, 6.5, 0, 6.3); ctx.fill();
+ctx.fillStyle = "#fff"; ctx.beginPath(); ctx.arc(0, 0, 3.8, 0, 6.3); ctx.fill();
+ctx.fillStyle = "#ff7a2e"; ctx.beginPath(); ctx.arc(0, 0, 1.8, 0, 6.3); ctx.fill();
+}
+ctx.restore();
+}
+
+function drawWorld(){
+const sp = Math.hypot(car.vx, car.vy);
+const zoom = 1.05 - sp * 0.00045;
+camX += (car.x + car.vx * 0.22 - camX) * 0.12;
+camY += (car.y + car.vy * 0.22 - camY) * 0.12;
+ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+ctx.fillStyle = mode === "race" ? "#2b4a3f" : "#2f333d";
+ctx.fillRect(0, 0, W, H);
+ctx.save();
+ctx.translate(W / 2, H / 2); ctx.scale(zoom, zoom); ctx.translate(-camX, -camY);
+const hw = W / zoom / 2 + 60, hh = H / zoom / 2 + 60;
+
+if (mode === "race"){
+const t = track;
+ctx.lineJoin = "round"; ctx.lineCap = "butt";
+ctx.lineWidth = t.width + 34; ctx.strokeStyle = "#f2f0ff"; ctx.stroke(t.path);
+ctx.setLineDash([30, 30]); ctx.strokeStyle = "#d8432f"; ctx.stroke(t.path);
+ctx.setLineDash([]);
+ctx.lineWidth = t.width; ctx.strokeStyle = "#3a3f4b"; ctx.stroke(t.path);
+ctx.lineWidth = 3; ctx.strokeStyle = "rgba(255,255,255,.35)"; ctx.setLineDash([22, 28]); ctx.stroke(t.path); ctx.setLineDash([]);
+// start line
+const a = t.P[4], b = t.P[5], ang = Math.atan2(b.y - a.y, b.x - a.x);
+ctx.save(); ctx.translate(a.x, a.y); ctx.rotate(ang);
+const n = 10, sz = t.width / n;
+for (let i = 0; i < n; i++) for (let j = 0; j < 2; j++){
+ctx.fillStyle = (i + j) % 2 ? "#fff" : "#111"; ctx.fillRect(j * 12 - 12, -t.width / 2 + i * sz, 12, sz);
+}
+ctx.restore();
+} else {
+ctx.strokeStyle = "rgba(255,255,255,.07)"; ctx.lineWidth = 4;
+const g = 240, x0 = Math.floor((camX - hw) / g) * g, y0 = Math.floor((camY - hh) / g) * g;
+ctx.beginPath();
+for (let x = x0; x < camX + hw; x += g){ ctx.moveTo(x, camY - hh); ctx.lineTo(x, camY + hh); }
+for (let y = y0; y < camY + hh; y += g){ ctx.moveTo(camX - hw, y); ctx.lineTo(camX + hw, y); }
+ctx.stroke();
+}
+
+// skid marks
+ctx.strokeStyle = "rgba(10,10,15,.4)"; ctx.lineWidth = 4; ctx.lineCap = "round"; ctx.beginPath();
+for (const s of skids){ ctx.moveTo(s[0], s[1]); ctx.lineTo(s[2], s[3]); ctx.moveTo(s[4], s[5]); ctx.lineTo(s[6], s[7]); }
+ctx.stroke();
+
+if (mode === "drift"){
+const x0 = Math.floor((camX - hw) / CELL), x1 = Math.floor((camX + hw) / CELL);
+const y0 = Math.floor((camY - hh) / CELL), y1 = Math.floor((camY + hh) / CELL);
+for (let i = x0 - 1; i <= x1 + 1; i++) for (let j = y0 - 1; j <= y1 + 1; j++)
+for (const c of genCell(i, j)) if (Math.abs(c.x - camX) < hw && Math.abs(c.y - camY) < hh) drawCone(c);
+}
+drawCar();
+for (const s of smoke){
+const k = s.life / 0.9;
+ctx.fillStyle = "rgba(235,235,245," + (0.35 * (1 - k)) + ")";
+ctx.beginPath(); ctx.arc(s.x, s.y, 7 + k * 20, 0, 6.3); ctx.fill();
+}
+ctx.restore();
+}
+
+function hud(){
+const sp = Math.hypot(car.vx, car.vy);
+$("spd").textContent = Math.round(sp * 0.3);
+if (mode === "race"){
+$("midV").textContent = Math.min(lap + 1, LAPS) + "/" + LAPS + " " + fmt(clock - lapStart);
+$("rV").textContent = bestLap ? fmt(bestLap) : "--";
+} else {
+$("midV").textContent = Math.max(0, Math.ceil(DRIFT_TIME - clock)) + "s";
+$("rV").textContent = Math.round(score);
+}
+}
+
+// ---------- loop ----------
+let last = performance.now();
+function frame(now){
+const dt = Math.min(0.033, (now - last) / 1000); last = now;
+if (mode){
+update(dt);
+drawWorld();
+hud();
+} else {
+ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+ctx.fillStyle = "#17122b"; ctx.fillRect(0, 0, W, H);
+}
+requestAnimationFrame(frame);
+}
+requestAnimationFrame(frame);
+})();
+</script>
+</body>
+</html>
