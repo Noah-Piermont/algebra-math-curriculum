@@ -1,0 +1,353 @@
+<!DOCTYPE html>
+
+<html lang="en">
+
+<head>
+
+  <meta charset="UTF-8">
+
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+
+  <title>Game Catalog | Algebra Math Curriculum</title>
+
+  <style>
+
+    * {
+
+      box-sizing: border-box;
+
+    }
+
+    body {
+
+      margin: 0;
+
+      background: #11121c;
+
+      color: #f5f1ff;
+
+      font-family: Arial, sans-serif;
+
+    }
+
+    header {
+
+      padding: 24px 20px;
+
+      text-align: center;
+
+      border-bottom: 1px solid #353545;
+
+      color: #c6ff65;
+
+      font-size: 13px;
+
+      font-weight: bold;
+
+      letter-spacing: 2px;
+
+    }
+
+    .back {
+
+      display: inline-block;
+
+      margin: 25px;
+
+      color: #c6ff65;
+
+      text-decoration: none;
+
+      font-size: 14px;
+
+    }
+
+    .back:hover {
+
+      color: #ff66cc;
+
+    }
+
+    main {
+
+      max-width: 1100px;
+
+      margin: auto;
+
+      padding: 20px;
+
+    }
+
+    .heading {
+
+      text-align: center;
+
+      margin-bottom: 45px;
+
+    }
+
+    h1 {
+
+      font-size: clamp(35px, 7vw, 60px);
+
+      margin-bottom: 15px;
+
+    }
+
+    .subtitle {
+
+      color: #b8b5c9;
+
+      font-size: 17px;
+
+    }
+
+    .games {
+
+      display: grid;
+
+      grid-template-columns: repeat(
+
+        auto-fit,
+
+        minmax(220px, 1fr)
+
+      );
+
+      gap: 22px;
+
+    }
+
+    .game-card {
+
+      background: #242536;
+
+      border: 1px solid #414154;
+
+      border-radius: 18px;
+
+      padding: 25px;
+
+      transition: 0.2s;
+
+    }
+
+    .game-card:hover {
+
+      border-color: #c6ff65;
+
+      transform: translateY(-4px);
+
+    }
+
+    .game-icon {
+
+      font-size: 42px;
+
+      margin-bottom: 18px;
+
+    }
+
+    .game-card h2 {
+
+      font-size: 21px;
+
+      margin: 0 0 12px;
+
+    }
+
+    .game-card p {
+
+      color: #b8b5c9;
+
+      font-size: 14px;
+
+      line-height: 1.6;
+
+      min-height: 45px;
+
+    }
+
+    .play-button {
+
+      display: inline-block;
+
+      margin-top: 12px;
+
+      background: #c6ff65;
+
+      color: #171820;
+
+      padding: 11px 17px;
+
+      border-radius: 9px;
+
+      font-size: 13px;
+
+      font-weight: bold;
+
+      text-decoration: none;
+
+    }
+
+    .play-button:hover {
+
+      background: #ff66cc;
+
+    }
+
+    footer {
+
+      text-align: center;
+
+      padding: 40px 20px;
+
+      color: #77778c;
+
+      font-size: 12px;
+
+    }
+
+  </style>
+
+</head>
+
+<body>
+
+  <header>
+
+    ALGEBRA MATH CURRICULUM
+
+  </header>
+
+  <a class="back" href="index.html">
+
+    ← BACK TO HOME
+
+  </a>
+
+  <main>
+
+    <section class="heading">
+
+      <h1>GAME CATALOG</h1>
+
+      <p class="subtitle">
+
+        Choose your next game.
+
+      </p>
+
+    </section>
+
+    <section class="games">
+
+      <div class="game-card">
+
+        <div class="game-icon">🐍</div>
+
+        <h2>Snake</h2>
+
+        <p>Collect items, grow longer, and avoid crashing.</p>
+
+        <a class="play-button" href="#">PLAY ↗</a>
+
+      </div>
+
+      <div class="game-card">
+
+        <div class="game-icon">🏎️</div>
+
+        <h2>Neon Drift</h2>
+
+        <p>Race through a glowing neon world.</p>
+
+        <a class="play-button" href="#">PLAY ↗</a>
+
+      </div>
+
+      <div class="game-card">
+
+        <div class="game-icon">🧠</div>
+
+        <h2>Memory Match</h2>
+
+        <p>Flip cards and find matching pairs.</p>
+
+        <a class="play-button" href="#">PLAY ↗</a>
+
+      </div>
+
+      <div class="game-card">
+
+        <div class="game-icon">🕹️</div>
+
+        <h2>Pixel Jumper</h2>
+
+        <p>Jump across platforms and explore.</p>
+
+        <a class="play-button" href="#">PLAY ↗</a>
+
+      </div>
+
+      <div class="game-card">
+
+        <div class="game-icon">⭕</div>
+
+        <h2>Tic-Tac-Toe</h2>
+
+        <p>Get three in a row to win.</p>
+
+        <a class="play-button" href="#">PLAY ↗</a>
+
+      </div>
+
+      <div class="game-card">
+
+        <div class="game-icon">⭐</div>
+
+        <h2>Star Catcher</h2>
+
+        <p>Catch falling stars and collect points.</p>
+
+        <a class="play-button" href="#">PLAY ↗</a>
+
+      </div>
+
+      <div class="game-card">
+
+        <div class="game-icon">🧱</div>
+
+        <h2>Block Breaker</h2>
+
+        <p>Break colorful blocks and clear the board.</p>
+
+        <a class="play-button" href="#">PLAY ↗</a>
+
+      </div>
+
+      <div class="game-card">
+
+        <div class="game-icon">🎯</div>
+
+        <h2>Click Challenge</h2>
+
+        <p>Test your speed and beat your high score.</p>
+
+        <a class="play-button" href="#">PLAY ↗</a>
+
+      </div>
+
+    </section>
+
+  </main>
+
+  <footer>
+
+    ALGEBRA MATH CURRICULUM
+
+  </footer>
+
+</body>
+
+</html>
