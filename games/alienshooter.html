@@ -1,0 +1,819 @@
+"""
+ALIEN ZAPPER - a 3D first-person shooter built with the Ursina engine.
+ 
+SETUP
+    pip install ursina
+    python alien_zapper.py
+ 
+CONTROLS
+    W A S D ..... move          Mouse ...... aim
+    Space ....... jump          Left click . shoot (hold for auto-fire)
+    Esc ......... back to menu
+ 
+RULES
+    * You have 100 health.
+    * Zap-gun alien  -> bolt hits you for 5
+    * Sword alien    -> slash hits you for 10
+    * Flip-flop alien-> thrown flip-flop hits you for 5
+    * You start with the Zapatron (50 damage). Aliens have 100 health.
+    * Every kill = 10 gold. Spend it in the Gun Shop.
+    * Progress (gold, guns, map, skin) is saved to alien_zapper_save.json
+"""
+from ursina import *
+from ursina.prefabs.first_person_controller import FirstPersonController
+import json
+import os
+import random
+from math import atan2, degrees, sin, cos, pi
+ 
+# ----------------------------------------------------------------------------
+# Tweakable settings
+# ----------------------------------------------------------------------------
+PLAYER_MAX_HP = 100
+ALIEN_HP = 100
+GOLD_PER_KILL = 10
+ 
+ZAP_DAMAGE = 5          # alien with the zap gun
+SWORD_DAMAGE = 10       # alien with the sword
+FLIPFLOP_DAMAGE = 5     # alien with the flip-flop
+ 
+ARENA_HALF = 48         # arena is a square from -48..48
+SWING_TIME = 0.3
+ 
+SAVE_FILE = os.path.join(os.path.dirname(os.path.abspath(__file__)), 'alien_zapper_save.json')
+ 
+ 
+def hsv(h, s, v, a=1):
+    return color.hsv(h, s, v, a)
+ 
+ 
+# ----------------------------------------------------------------------------
+# Game data: guns, skins, maps
+# ----------------------------------------------------------------------------
+GUNS = [
+    dict(key='zapatron', name='Zapatron',      damage=50,  cooldown=0.35, price=0,   hue=190),
+    dict(key='plasma',   name='Plasma Pistol', damage=60,  cooldown=0.22, price=100, hue=300),
+    dict(key='photon',   name='Photon Cannon', damage=100, cooldown=0.70, price=200, hue=40),
+    dict(key='doom',     name='Doom Zapper',   damage=75,  cooldown=0.12, price=400, hue=0),
+]
+GUN_BY_KEY = {g['key']: g for g in GUNS}
+ 
+SKINS = {
+    'classic': ('Classic', hsv(25, .35, .95)),
+    'ocean':   ('Ocean',   hsv(205, .8, .95)),
+    'toxic':   ('Toxic',   hsv(110, .9, .85)),
+    'crimson': ('Crimson', hsv(0, .85, .85)),
+    'royal':   ('Royal',   hsv(48, .9, 1)),
+    'void':    ('Void',    hsv(275, .7, .75)),
+}
+ 
+MAPS = {
+    'moon': dict(
+        name='Moon Base', desc='Dusty crater with scattered supply crates.',
+        sky=hsv(235, .7, .07), ground=hsv(220, .1, .6), wall=hsv(220, .2, .4),
+        obst=[hsv(215, .15, .75), hsv(200, .25, .55), hsv(30, .2, .7)],
+        count=22, w=(2, 5), h=(1.5, 4), rot=True, stars=True,
+        orb=(hsv(210, .8, .9), Vec3(-160, 100, 260), 45), seed=7),
+    'mars': dict(
+        name='Mars Canyon', desc='Red rocks, hot wind and a huge sun.',
+        sky=hsv(18, .5, .55), ground=hsv(14, .65, .62), wall=hsv(10, .6, .35),
+        obst=[hsv(10, .7, .5), hsv(20, .6, .6), hsv(25, .5, .4)],
+        count=26, w=(2, 6), h=(2, 7), rot=True, stars=False,
+        orb=(hsv(40, .4, 1), Vec3(150, 110, 250), 35), seed=21),
+    'neon': dict(
+        name='Neon City', desc='Glowing towers after dark.',
+        sky=hsv(265, .8, .08), ground=hsv(250, .5, .25), wall=hsv(280, .6, .3),
+        obst=[hsv(300, .9, 1), hsv(185, .9, 1), hsv(55, .9, 1), hsv(140, .9, 1)],
+        count=20, w=(1.5, 3), h=(5, 14), rot=False, stars=True,
+        orb=(hsv(320, .8, 1), Vec3(-180, 120, -250), 50), seed=99),
+}
+ 
+ALIEN_SKIN = {
+    'zap':      hsv(115, .75, .85),
+    'sword':    hsv(280, .6, .75),
+    'flipflop': hsv(45, .8, .95),
+}
+ 
+MENU_BG = hsv(230, .5, .12)
+ 
+# ----------------------------------------------------------------------------
+# Save data
+# ----------------------------------------------------------------------------
+DEFAULT_SAVE = {'gold': 0, 'owned': ['zapatron'], 'gun': 'zapatron', 'map': 'moon', 'skin': 'classic'}
+ 
+ 
+def load_save():
+    data = dict(DEFAULT_SAVE)
+    try:
+        with open(SAVE_FILE) as f:
+            loaded = json.load(f)
+        for k in DEFAULT_SAVE:
+            if k in loaded:
+                data[k] = loaded[k]
+    except Exception:
+        pass
+    data['owned'] = [k for k in data['owned'] if k in GUN_BY_KEY]
+    if 'zapatron' not in data['owned']:
+        data['owned'].insert(0, 'zapatron')
+    if data['gun'] not in data['owned']:
+        data['gun'] = 'zapatron'
+    if data['map'] not in MAPS:
+        data['map'] = 'moon'
+    if data['skin'] not in SKINS:
+        data['skin'] = 'classic'
+    data['gold'] = int(data['gold'])
+    return data
+ 
+ 
+def write_save():
+    try:
+        with open(SAVE_FILE, 'w') as f:
+            json.dump(save, f)
+    except Exception:
+        pass
+ 
+ 
+save = load_save()
+ 
+# ----------------------------------------------------------------------------
+# Engine setup
+# ----------------------------------------------------------------------------
+app = Ursina(title='Alien Zapper', borderless=False)
+window.fps_counter.enabled = False
+window.exit_button.visible = False
+window.color = MENU_BG
+ 
+# ----------------------------------------------------------------------------
+# Runtime state
+# ----------------------------------------------------------------------------
+state = 'menu'          # 'menu' | 'playing' | 'dead'
+player = None
+player_hp = PLAYER_MAX_HP
+shoot_cd = 0.0
+spawn_timer = 0.0
+game_time = 0.0
+play_start = 0.0
+session_kills = 0
+session_gold = 0
+ 
+aliens = []
+projectiles = []
+world = []
+ 
+ 
+# ----------------------------------------------------------------------------
+# Effects
+# ----------------------------------------------------------------------------
+def explode(pos, col):
+    for _ in range(12):
+        e = Entity(model='cube', color=col, scale=.18, position=pos + Vec3(0, 1.2, 0))
+        e.animate_position(
+            e.position + Vec3(random.uniform(-2.5, 2.5), random.uniform(.3, 2.5), random.uniform(-2.5, 2.5)),
+            duration=.5, curve=curve.out_expo)
+        e.animate_scale(0, duration=.5)
+        destroy(e, delay=.55)
+ 
+ 
+def tracer(a, b, col):
+    d = b - a
+    length = d.length()
+    if length < .1:
+        return
+    t = Entity(model='cube', color=col, position=(a + b) / 2, scale=(.04, .04, length))
+    t.look_at(b)
+    destroy(t, delay=.07)
+ 
+ 
+def gold_popup():
+    t = Text(text='+%d GOLD' % GOLD_PER_KILL, parent=hud, origin=(0, 0), position=(0, .08),
+             scale=2, color=hsv(50, 1, 1))
+    t.animate_y(.16, duration=.7)
+    destroy(t, delay=.7)
+ 
+ 
+# ----------------------------------------------------------------------------
+# Combat
+# ----------------------------------------------------------------------------
+def hurt(amount):
+    global player_hp
+    if state != 'playing':
+        return
+    player_hp = max(0, player_hp - amount)
+    damage_flash.color = hsv(0, 1, 1, .35)
+    damage_flash.animate_color(hsv(0, 1, 1, 0), duration=.35)
+    refresh_hud()
+    if player_hp <= 0:
+        game_over()
+ 
+ 
+class Projectile(Entity):
+    def __init__(self, pos, target, kind):
+        if kind == 'bolt':
+            super().__init__(model='cube', color=hsv(120, 1, 1), scale=(.14, .14, .7), position=pos)
+            self.speed = 22
+            self.damage = ZAP_DAMAGE
+            self.look_at(target)
+        else:
+            super().__init__(model='cube', color=hsv(330, .55, 1), scale=(.35, .07, .85), position=pos)
+            self.speed = 13
+            self.damage = FLIPFLOP_DAMAGE
+        self.kind = kind
+        self.heading = (target - pos).normalized()
+        self.life = 5.0
+        projectiles.append(self)
+ 
+    def kill(self):
+        if self in projectiles:
+            projectiles.remove(self)
+        destroy(self)
+ 
+    def update(self):
+        if state != 'playing':
+            return
+        dt = time.dt
+        step = self.speed * dt
+        # stop on walls / obstacles
+        h = raycast(self.position, self.heading, distance=step * 1.3, ignore=[self])
+        if h.hit and not isinstance(h.entity, Alien):
+            self.kill()
+            return
+        self.position += self.heading * step
+        if self.kind == 'flipflop':
+            self.rotation_y += 720 * dt
+        self.life -= dt
+        chest = player.position + Vec3(0, 1.3, 0)
+        if (self.position - chest).length() < .9:
+            hurt(self.damage)
+            self.kill()
+            return
+        if self.life <= 0 or self.y < 0:
+            self.kill()
+ 
+ 
+class Alien(Entity):
+    def __init__(self, kind, position):
+        super().__init__(position=position)
+        self.kind = kind
+        self.hp = ALIEN_HP
+        self.max_hp = ALIEN_HP
+        self.skin = ALIEN_SKIN[kind]
+        self.cd = random.uniform(.6, 1.6)
+        self.swing_t = 0.0
+        self.swing_amp = -25 if kind == 'zap' else 110
+        self.windup = 0.0
+        self.flash_t = 0.0
+        self.dead = False
+        s = self.skin
+ 
+        # body
+        self.body = Entity(parent=self, model='cube', color=s, scale=(.8, 1.0, .45), y=1.0)
+        self.head = Entity(parent=self, model='sphere', color=s, scale=(.85, .95, .85), y=1.95)
+        for sx in (-.2, .2):
+            Entity(parent=self, model='cube', color=color.black, scale=(.18, .1, .1), position=(sx, 2.0, .36))
+            Entity(parent=self, model='cube', color=s, scale=(.05, .45, .05), position=(sx * 1.2, 2.65, 0))
+            Entity(parent=self, model='sphere', color=hsv(0, 1, 1), scale=.14, position=(sx * 1.2, 2.9, 0))
+            Entity(parent=self, model='cube', color=s, scale=(.22, .55, .25), position=(sx, .28, 0))
+        Entity(parent=self, model='cube', color=s, scale=(.18, .7, .18), position=(-.55, 1.0, 0))
+        Entity(parent=self, model='cube', color=s, scale=(.18, .7, .18), position=(.55, 1.0, .05))
+ 
+        # weapon (held in right hand)
+        self.weapon = Entity(parent=self, position=(.6, 1.1, .3))
+        w = self.weapon
+        if kind == 'zap':
+            Entity(parent=w, model='cube', color=hsv(200, .3, .3), scale=(.15, .22, .6), z=.25)
+            Entity(parent=w, model='cube', color=hsv(150, 1, 1), scale=(.1, .1, .12), z=.6)
+        elif kind == 'sword':
+            Entity(parent=w, model='cube', color=hsv(210, .1, .9), scale=(.08, 1.2, .04), y=.7)
+            Entity(parent=w, model='cube', color=hsv(30, .8, .5), scale=(.35, .08, .1), y=.08)
+            Entity(parent=w, model='cube', color=hsv(20, .7, .3), scale=(.07, .25, .07), y=-.1)
+        else:
+            Entity(parent=w, model='cube', color=hsv(330, .55, 1), scale=(.32, .85, .06), y=.4)
+            Entity(parent=w, model='cube', color=hsv(330, .8, .7), scale=(.2, .1, .09), y=.6)
+ 
+        # health bar
+        self.bar_pivot = Entity(parent=self, y=3.3)
+        Entity(parent=self.bar_pivot, model='cube', color=hsv(0, 0, .1), scale=(1.1, .14, .04))
+        self.bar = Entity(parent=self.bar_pivot, model='cube', color=hsv(0, .9, .9), scale=(1, .1, .06))
+ 
+        self.collider = BoxCollider(self, center=Vec3(0, 1.5, 0), size=Vec3(1.2, 3.0, 1.2))
+        aliens.append(self)
+ 
+    # --- helpers -----------------------------------------------------------
+    def blocked(self, d):
+        h = raycast(self.world_position + Vec3(0, 1, 0), d, distance=1.4, ignore=[self])
+        return h.hit and not isinstance(h.entity, Alien)
+ 
+    def step(self, d, speed):
+        for ang in (0, 50, -50, 100, -100):
+            r = ang * pi / 180
+            dd = Vec3(d.x * cos(r) - d.z * sin(r), 0, d.x * sin(r) + d.z * cos(r))
+            if not self.blocked(dd):
+                self.position += dd * speed * time.dt
+                break
+        self.x = clamp(self.x, -ARENA_HALF + 1, ARENA_HALF - 1)
+        self.z = clamp(self.z, -ARENA_HALF + 1, ARENA_HALF - 1)
+        self.y = 0
+ 
+    def line_clear(self, target):
+        origin = self.world_position + Vec3(0, 1.3, 0)
+        to = target - origin
+        h = raycast(origin, to.normalized(), distance=to.length(), ignore=[self])
+        return (not h.hit) or isinstance(h.entity, Alien)
+ 
+    # --- damage ------------------------------------------------------------
+    def take_damage(self, amount):
+        if self.dead:
+            return
+        self.hp -= amount
+        self.flash_t = .12
+        self.body.color = color.white
+        self.head.color = color.white
+        frac = max(self.hp, 0) / self.max_hp
+        self.bar.scale_x = max(.001, frac)
+        self.bar.x = -(1 - frac) * .5
+        if self.hp <= 0:
+            self.die()
+ 
+    def die(self):
+        global session_kills, session_gold
+        self.dead = True
+        save['gold'] += GOLD_PER_KILL
+        session_kills += 1
+        session_gold += GOLD_PER_KILL
+        write_save()
+        explode(self.world_position, self.skin)
+        gold_popup()
+        if self in aliens:
+            aliens.remove(self)
+        destroy(self)
+        refresh_hud()
+ 
+    # --- AI ----------------------------------------------------------------
+    def update(self):
+        if state != 'playing' or self.dead:
+            return
+        dt = time.dt
+        self.cd -= dt
+ 
+        if self.flash_t > 0:
+            self.flash_t -= dt
+            if self.flash_t <= 0:
+                self.body.color = self.skin
+                self.head.color = self.skin
+ 
+        to = Vec3(player.x - self.x, 0, player.z - self.z)
+        dist = to.length()
+        if dist < .01:
+            return
+        d = to.normalized()
+        self.rotation_y = degrees(atan2(d.x, d.z))
+        self.bar_pivot.rotation_y = player.rotation_y - self.rotation_y
+ 
+        if self.swing_t > 0:
+            self.swing_t -= dt
+            prog = 1 - max(0, self.swing_t) / SWING_TIME
+            self.weapon.rotation_x = sin(pi * prog) * self.swing_amp
+        else:
+            self.weapon.rotation_x = 0
+ 
+        if self.kind == 'sword':
+            if dist > 1.8:
+                self.step(d, 4.2)
+            if self.windup > 0:
+                self.windup -= dt
+                if self.windup <= 0 and dist < 2.9:
+                    hurt(SWORD_DAMAGE)
+            elif dist < 2.4 and self.cd <= 0:
+                self.cd = 1.1
+                self.swing_t = SWING_TIME
+                self.windup = .15
+        else:
+            zap = self.kind == 'zap'
+            far, near, reach = (14, 9, 26) if zap else (11, 6, 20)
+            speed = 2.6 if zap else 3.2
+            if dist > far:
+                self.step(d, speed)
+            elif dist < near:
+                self.step(-d, speed)
+            target = player.world_position + Vec3(0, 1.3, 0)
+            if self.cd <= 0 and dist < reach and self.line_clear(target):
+                self.cd = random.uniform(1.5, 2.2)
+                self.swing_t = SWING_TIME
+                start = self.world_position + Vec3(0, 1.2, 0) + self.forward * .9
+                Projectile(start, target, 'bolt' if zap else 'flipflop')
+ 
+ 
+# ----------------------------------------------------------------------------
+# World building
+# ----------------------------------------------------------------------------
+def clear_world():
+    for e in world:
+        destroy(e)
+    world.clear()
+ 
+ 
+def clear_enemies():
+    for a in aliens[:]:
+        destroy(a)
+    aliens.clear()
+    for p in projectiles[:]:
+        destroy(p)
+    projectiles.clear()
+ 
+ 
+def build_map(key):
+    clear_world()
+    m = MAPS[key]
+    window.color = m['sky']
+ 
+    def add(**kw):
+        e = Entity(**kw)
+        world.append(e)
+        return e
+ 
+    size = 2 * ARENA_HALF + 4
+    add(model='cube', scale=(size, 1, size), y=-.5, color=m['ground'],
+        texture='white_cube', texture_scale=(size, size), collider='box')
+ 
+    wall_h = 8
+    for (x, z, sx, sz) in [(0, ARENA_HALF + 1, size, 2), (0, -ARENA_HALF - 1, size, 2),
+                           (ARENA_HALF + 1, 0, 2, size), (-ARENA_HALF - 1, 0, 2, size)]:
+        add(model='cube', position=(x, wall_h / 2, z), scale=(sx, wall_h, sz),
+            color=m['wall'], texture='white_cube', collider='box')
+ 
+    rng = random.Random(m['seed'])
+    placed = tries = 0
+    while placed < m['count'] and tries < 600:
+        tries += 1
+        x = rng.uniform(-ARENA_HALF + 4, ARENA_HALF - 4)
+        z = rng.uniform(-ARENA_HALF + 4, ARENA_HALF - 4)
+        if abs(x) < 9 and abs(z) < 9:
+            continue
+        w = rng.uniform(*m['w'])
+        dpt = rng.uniform(*m['w'])
+        h = rng.uniform(*m['h'])
+        add(model='cube', position=(x, h / 2, z), scale=(w, h, dpt),
+            rotation_y=rng.uniform(0, 90) if m['rot'] else 0,
+            color=rng.choice(m['obst']), texture='white_cube', collider='box')
+        placed += 1
+ 
+    if m['stars']:
+        for _ in range(120):
+            a = rng.uniform(0, 2 * pi)
+            el = rng.uniform(.15, 1.3)
+            r = 320
+            add(model='cube', scale=rng.uniform(.8, 2), color=color.white,
+                position=(r * cos(a) * cos(el), r * sin(el), r * sin(a) * cos(el)))
+ 
+    orb_col, orb_pos, orb_size = m['orb']
+    add(model='sphere', color=orb_col, scale=orb_size, position=orb_pos)
+ 
+ 
+# ----------------------------------------------------------------------------
+# First-person viewmodel (gun + hand)
+# ----------------------------------------------------------------------------
+VM_POS = Vec3(.45, -.38, .9)
+viewmodel = Entity(parent=camera, position=VM_POS, enabled=False)
+vm_body = Entity(parent=viewmodel, model='cube', scale=(.12, .16, .6))
+vm_barrel = Entity(parent=viewmodel, model='cube', scale=(.06, .06, .4), z=.45, color=hsv(0, 0, .2))
+vm_tip = Entity(parent=viewmodel, model='cube', scale=(.08, .08, .06), z=.66)
+vm_hand = Entity(parent=viewmodel, model='cube', scale=(.14, .22, .16), position=(0, -.16, -.12))
+vm_arm = Entity(parent=viewmodel, model='cube', scale=(.12, .12, .8), position=(0, -.22, -.55))
+ 
+ 
+def apply_gun():
+    g = GUN_BY_KEY[save['gun']]
+    vm_body.color = hsv(g['hue'], .7, .8)
+    vm_tip.color = hsv(g['hue'], .6, 1)
+ 
+ 
+def apply_skin():
+    col = SKINS[save['skin']][1]
+    vm_hand.color = col
+    vm_arm.color = col
+    if 'skin_preview' in globals():
+        skin_preview.color = col
+ 
+ 
+def try_shoot():
+    global shoot_cd
+    if shoot_cd > 0:
+        return
+    g = GUN_BY_KEY[save['gun']]
+    shoot_cd = g['cooldown']
+    origin = camera.world_position
+    direction = camera.forward
+    hit = raycast(origin, direction, distance=150, ignore=[player])
+    end = hit.world_point if hit.hit else origin + direction * 150
+    start = origin + camera.forward * 1.2 + camera.right * .35 + camera.down * .3
+    tracer(start, end, hsv(g['hue'], .6, 1))
+    viewmodel.position = VM_POS - Vec3(0, 0, .12)
+    viewmodel.animate_position(VM_POS, duration=.1)
+    if hit.hit and isinstance(hit.entity, Alien):
+        hit.entity.take_damage(g['damage'])
+ 
+ 
+def spawn_alien():
+    kind = random.choice(['zap', 'sword', 'flipflop'])
+    ang = random.uniform(0, 2 * pi)
+    r = random.uniform(22, 34)
+    x = clamp(player.x + cos(ang) * r, -ARENA_HALF + 3, ARENA_HALF - 3)
+    z = clamp(player.z + sin(ang) * r, -ARENA_HALF + 3, ARENA_HALF - 3)
+    Alien(kind, Vec3(x, 0, z))
+ 
+ 
+# ----------------------------------------------------------------------------
+# HUD
+# ----------------------------------------------------------------------------
+L = -.5 * window.aspect_ratio
+B = -.5
+HP_W = .4
+ 
+hud = Entity(parent=camera.ui, enabled=False)
+damage_flash = Entity(parent=hud, model='quad', color=hsv(0, 1, 1, 0), scale=(3, 2), z=1)
+hp_back = Entity(parent=hud, model='quad', origin=(-.5, 0), color=hsv(0, 0, .12),
+                 scale=(HP_W + .01, .045), position=(L + .035, B + .06))
+hp_fill = Entity(parent=hud, model='quad', origin=(-.5, 0), color=hsv(120, .85, .9),
+                 scale=(HP_W, .035), position=(L + .04, B + .06), z=-.01)
+hp_text = Text(parent=hud, text='', position=(L + .04, B + .125), scale=1.2)
+gold_hud = Text(parent=hud, text='', position=(L + .03, .48), scale=1.5, color=hsv(50, 1, 1))
+kills_hud = Text(parent=hud, text='', position=(L + .03, .44), scale=1.2)
+gun_hud = Text(parent=hud, text='', origin=(.5, -.5), position=(-L - .03, B + .04), scale=1.3)
+ 
+ 
+def refresh_hud():
+    frac = player_hp / PLAYER_MAX_HP
+    hp_fill.scale_x = max(.0001, HP_W * frac)
+    hp_fill.color = hsv(120 * frac, .85, .9)
+    hp_text.text = f'HEALTH {player_hp}/{PLAYER_MAX_HP}'
+    gold_hud.text = f'GOLD: {save["gold"]}'
+    kills_hud.text = f'KILLS: {session_kills}'
+    g = GUN_BY_KEY[save['gun']]
+    gun_hud.text = f'{g["name"]}  ({g["damage"]} dmg)'
+ 
+ 
+# ----------------------------------------------------------------------------
+# Menus
+# ----------------------------------------------------------------------------
+panels = {}
+gold_labels = []
+gun_buttons = {}
+map_buttons = {}
+skin_buttons = {}
+ 
+ 
+def mk_panel(name):
+    p = Entity(parent=camera.ui, enabled=False)
+    panels[name] = p
+    return p
+ 
+ 
+def show_panel(name):
+    for k, p in panels.items():
+        p.enabled = (k == name)
+ 
+ 
+def title(parent, text, y=.38, col=None):
+    return Text(text=text, parent=parent, origin=(0, 0), position=(0, y), scale=2.6,
+                color=col or hsv(130, .9, 1))
+ 
+ 
+def gold_label(parent, y):
+    t = Text(text='', parent=parent, origin=(0, 0), position=(0, y), scale=1.5, color=hsv(50, 1, 1))
+    gold_labels.append(t)
+    return t
+ 
+ 
+def btn(parent, text, pos, scale, fn, col=None, **kw):
+    b = Button(text=text, parent=parent, position=pos, scale=scale,
+               color=col or hsv(215, .7, .55), **kw)
+    b.on_click = fn
+    return b
+ 
+ 
+def refresh_menu():
+    for t in gold_labels:
+        t.text = f'GOLD: {save["gold"]}'
+    for key, b in gun_buttons.items():
+        g = GUN_BY_KEY[key]
+        if key == save['gun']:
+            status = 'EQUIPPED'
+        elif key in save['owned']:
+            status = 'OWNED - click to equip'
+        else:
+            status = f'BUY {g["price"]}G'
+        b.text = f'{g["name"]}  |  DMG {g["damage"]}  |  {1 / g["cooldown"]:.1f}/s  |  {status}'
+    for key, b in map_buttons.items():
+        b.text = MAPS[key]['name'] + ('  [SELECTED]' if key == save['map'] else '')
+    for key, b in skin_buttons.items():
+        name = SKINS[key][0]
+        b.text = f'* {name} *' if key == save['skin'] else name
+    skin_label.text = f'Selected skin: {SKINS[save["skin"]][0]}'
+ 
+ 
+# ---- main panel ----
+main_p = mk_panel('main')
+title(main_p, 'ALIEN ZAPPER', .36)
+Text(text='Zap the aliens. Survive. Get rich.', parent=main_p, origin=(0, 0), position=(0, .29),
+     scale=1.1, color=color.light_gray)
+gold_label(main_p, .22)
+btn(main_p, 'PLAY', (0, .12), (.32, .075), lambda: start_game(), hsv(130, .75, .6))
+btn(main_p, 'GUN SHOP', (0, .02), (.32, .075), lambda: (refresh_menu(), show_panel('shop')))
+btn(main_p, 'MAP', (0, -.08), (.32, .075), lambda: (refresh_menu(), show_panel('maps')))
+btn(main_p, 'SKIN CHANGER', (0, -.18), (.32, .075), lambda: (refresh_menu(), show_panel('skins')))
+btn(main_p, 'QUIT', (0, -.28), (.32, .075), lambda: application.quit(), hsv(0, .7, .55))
+Text(text='Zap-gun alien: 5 dmg   |   Sword alien: 10 dmg   |   Flip-flop alien: 5 dmg',
+     parent=main_p, origin=(0, 0), position=(0, -.39), scale=1, color=color.light_gray)
+Text(text='WASD move  |  Mouse aim  |  Click shoot  |  Space jump  |  Esc menu',
+     parent=main_p, origin=(0, 0), position=(0, -.44), scale=1, color=color.gray)
+ 
+# ---- gun shop ----
+shop_p = mk_panel('shop')
+title(shop_p, 'GUN SHOP', .4)
+gold_label(shop_p, .32)
+shop_msg = Text(text='', parent=shop_p, origin=(0, 0), position=(0, -.27), scale=1.2, color=hsv(0, .8, 1))
+ 
+ 
+def buy_or_equip(key):
+    g = GUN_BY_KEY[key]
+    if key in save['owned']:
+        save['gun'] = key
+        shop_msg.text = f'Equipped {g["name"]}!'
+    elif save['gold'] >= g['price']:
+        save['gold'] -= g['price']
+        save['owned'].append(key)
+        save['gun'] = key
+        shop_msg.text = f'Bought {g["name"]}!'
+    else:
+        shop_msg.text = f'Not enough gold! Need {g["price"] - save["gold"]} more.'
+    write_save()
+    apply_gun()
+    refresh_menu()
+ 
+ 
+for i, g in enumerate(GUNS):
+    gun_buttons[g['key']] = btn(shop_p, '', (0, .2 - i * .12), (.8, .09),
+                                lambda k=g['key']: buy_or_equip(k), hsv(g['hue'], .6, .5))
+btn(shop_p, 'BACK', (0, -.36), (.25, .07), lambda: (show_panel('main'), setattr(shop_msg, 'text', '')))
+ 
+# ---- map select ----
+maps_p = mk_panel('maps')
+title(maps_p, 'SELECT MAP', .38)
+gold_label(maps_p, .3)
+ 
+ 
+def choose_map(key):
+    save['map'] = key
+    write_save()
+    refresh_menu()
+ 
+ 
+for i, (key, m) in enumerate(MAPS.items()):
+    y = .17 - i * .17
+    map_buttons[key] = btn(maps_p, '', (0, y), (.6, .09), lambda k=key: choose_map(k), m['sky'].tint(.25))
+    Text(text=m['desc'], parent=maps_p, origin=(0, 0), position=(0, y - .065), scale=1, color=color.light_gray)
+btn(maps_p, 'BACK', (0, -.36), (.25, .07), lambda: show_panel('main'))
+ 
+# ---- skin changer ----
+skins_p = mk_panel('skins')
+title(skins_p, 'SKIN CHANGER', .38)
+gold_label(skins_p, .3)
+ 
+ 
+def choose_skin(key):
+    save['skin'] = key
+    write_save()
+    apply_skin()
+    refresh_menu()
+ 
+ 
+for i, (key, (name, col)) in enumerate(SKINS.items()):
+    x = (i % 3 - 1) * .27
+    y = .15 - (i // 3) * .13
+    skin_buttons[key] = btn(skins_p, name, (x, y), (.25, .1), lambda k=key: choose_skin(k), col,
+                            text_color=color.black)
+skin_label = Text(text='', parent=skins_p, origin=(0, 0), position=(0, -.08), scale=1.3)
+skin_preview = Entity(parent=skins_p, model='quad', scale=(.12, .12), position=(0, -.2),
+                      color=SKINS[save['skin']][1])
+btn(skins_p, 'BACK', (0, -.36), (.25, .07), lambda: show_panel('main'))
+ 
+# ---- game over ----
+over_p = mk_panel('over')
+title(over_p, 'YOU GOT ZAPPED!', .25, hsv(0, .9, 1))
+over_stats = Text(text='', parent=over_p, origin=(0, 0), position=(0, .12), scale=1.5)
+btn(over_p, 'RETRY', (0, 0), (.3, .075), lambda: start_game(), hsv(130, .75, .6))
+btn(over_p, 'MAIN MENU', (0, -.1), (.3, .075), lambda: go_menu())
+ 
+ 
+# ----------------------------------------------------------------------------
+# State transitions
+# ----------------------------------------------------------------------------
+def set_cursor(on):
+    cur = getattr(player, 'cursor', None) if player else None
+    if cur is not None:
+        cur.enabled = on
+ 
+ 
+def start_game():
+    global state, player, player_hp, shoot_cd, spawn_timer, play_start, game_time
+    global session_kills, session_gold
+    clear_enemies()
+    build_map(save['map'])
+    if player is None:
+        player = FirstPersonController()
+        player.speed = 6.5
+    player.enabled = True
+    set_cursor(True)
+    player.position = Vec3(0, 1, 0)
+    player.rotation_y = 0
+    player.camera_pivot.rotation_x = 0
+    mouse.locked = True
+ 
+    player_hp = PLAYER_MAX_HP
+    shoot_cd = 0.0
+    spawn_timer = 1.5
+    session_kills = 0
+    session_gold = 0
+    play_start = game_time
+ 
+    apply_gun()
+    apply_skin()
+    viewmodel.enabled = True
+    hud.enabled = True
+    refresh_hud()
+    show_panel(None)
+    state = 'playing'
+ 
+ 
+def game_over():
+    global state
+    state = 'dead'
+    write_save()
+    player.enabled = False
+    set_cursor(False)
+    viewmodel.enabled = False
+    mouse.locked = False
+    mouse.visible = True
+    over_stats.text = f'Kills: {session_kills}     Gold earned: {session_gold}     Total gold: {save["gold"]}'
+    show_panel('over')
+ 
+ 
+def go_menu():
+    global state
+    state = 'menu'
+    clear_enemies()
+    clear_world()
+    if player is not None:
+        player.enabled = False
+    set_cursor(False)
+    viewmodel.enabled = False
+    hud.enabled = False
+    window.color = MENU_BG
+    mouse.locked = False
+    mouse.visible = True
+    write_save()
+    refresh_menu()
+    show_panel('main')
+ 
+ 
+# ----------------------------------------------------------------------------
+# Main loop hooks
+# ----------------------------------------------------------------------------
+def update():
+    global game_time, shoot_cd, spawn_timer
+    if state != 'playing':
+        return
+    dt = time.dt
+    game_time += dt
+    shoot_cd = max(0.0, shoot_cd - dt)
+ 
+    if held_keys['left mouse'] and game_time - play_start > .3:
+        try_shoot()
+ 
+    spawn_timer -= dt
+    if spawn_timer <= 0:
+        max_alive = min(10, 3 + session_kills // 4)
+        if len(aliens) < max_alive:
+            spawn_alien()
+        spawn_timer = max(1.4, 4.0 - session_kills * .08)
+ 
+    if player.y < -15:
+        player.position = Vec3(0, 3, 0)
+ 
+ 
+def input(key):
+    if state == 'playing' and key == 'escape':
+        go_menu()
+ 
+ 
+# ----------------------------------------------------------------------------
+# Go!
+# ----------------------------------------------------------------------------
+apply_gun()
+apply_skin()
+refresh_menu()
+show_panel('main')
+mouse.locked = False
+mouse.visible = True
+app.run()
+ 
