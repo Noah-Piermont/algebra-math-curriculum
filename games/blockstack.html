@@ -1,0 +1,292 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, user-scalable=no">
+<title>Tetris</title>
+<style>
+:root{--bg:#1a1530;--panel:#262046;--text:#f4efe6;--gold:#ffd23f}
+*{box-sizing:border-box;margin:0}
+body{min-height:100vh;display:grid;place-items:center;background:var(--bg);color:var(--text);
+font-family:"Trebuchet MS",Verdana,sans-serif;padding:12px;overscroll-behavior:none;touch-action:manipulation}
+.game{display:flex;gap:14px;align-items:flex-start;justify-content:center;flex-wrap:wrap}
+.col{display:flex;flex-direction:column;gap:12px}
+.box{background:var(--panel);border-radius:10px;padding:10px;text-align:center;min-width:112px}
+.box small{display:block;font-size:12px;opacity:.7;margin-bottom:4px}
+.box b{font-size:22px;font-variant-numeric:tabular-nums}
+canvas{display:block;margin:0 auto}
+#wrap{position:relative}
+#board{background:#0f0b1f;border-radius:10px;border:3px solid var(--panel);
+height:min(76vh,600px);width:auto;aspect-ratio:1/2}
+#ov{position:absolute;inset:0;border-radius:10px;background:rgba(15,11,31,.86);display:flex;flex-direction:column;
+align-items:center;justify-content:center;gap:14px;text-align:center;padding:16px}
+#ov.hide{display:none}
+#ov h2{font:900 34px "Arial Black",Impact,sans-serif;color:var(--gold)}
+button{background:var(--gold);color:#1a1530;border:0;border-radius:10px;padding:12px 20px;font:700 16px inherit;cursor:pointer}
+button:focus-visible{outline:3px solid #fff;outline-offset:2px}
+.keys{font-size:13px;line-height:1.8;opacity:.8}
+kbd{background:#3a3170;border-radius:5px;padding:1px 6px;font:inherit}
+.pad{display:none;grid-template-columns:repeat(3,64px);gap:8px;margin-top:10px;justify-content:center}
+.pad button{padding:0;height:52px;font-size:20px;background:var(--panel);color:var(--text);user-select:none;touch-action:none}
+@media (pointer:coarse){.pad{display:grid}.keys{display:none}}
+</style>
+</head>
+<body>
+<div class="game">
+<div class="col">
+<div class="box"><small>Hold</small><canvas id="hold" width="100" height="80"></canvas></div>
+<div class="box"><small>Score</small><b id="score">0</b></div>
+<div class="box"><small>Lines</small><b id="lines">0</b></div>
+<div class="box"><small>Level</small><b id="level">1</b></div>
+<div class="box"><small>Best</small><b id="best">0</b></div>
+</div>
+<div>
+<div id="wrap">
+<canvas id="board" width="300" height="600"></canvas>
+<div id="ov">
+<h2 id="ovT">Tetris</h2>
+<p id="ovS" class="keys"></p>
+<button id="go">Start</button>
+<div class="keys">
+<kbd>←</kbd> <kbd>→</kbd> move &nbsp; <kbd>↑</kbd> rotate &nbsp; <kbd>Z</kbd> rotate back<br>
+<kbd>↓</kbd> soft drop &nbsp; <kbd>Space</kbd> hard drop<br>
+<kbd>C</kbd> hold &nbsp; <kbd>P</kbd> pause
+</div>
+</div>
+</div>
+<div class="pad">
+<button data-a="hold">Hold</button><button data-a="rot">⟳</button><button data-a="drop">Drop</button>
+<button data-a="left" data-rep="1">◀</button><button data-a="down" data-rep="1">▼</button><button data-a="right" data-rep="1">▶</button>
+</div>
+</div>
+<div class="col">
+<div class="box"><small>Next</small><canvas id="next" width="100" height="270"></canvas></div>
+</div>
+</div>
+
+<script>
+(() => {
+const COLS = 10, ROWS = 20, CS = 30;
+const $ = id => document.getElementById(id);
+const bctx = $("board").getContext("2d");
+const hctx = $("hold").getContext("2d");
+const nctx = $("next").getContext("2d");
+
+const SHAPES = {
+I: [[0,0,0,0],[1,1,1,1],[0,0,0,0],[0,0,0,0]],
+O: [[1,1],[1,1]],
+T: [[0,1,0],[1,1,1],[0,0,0]],
+S: [[0,1,1],[1,1,0],[0,0,0]],
+Z: [[1,1,0],[0,1,1],[0,0,0]],
+J: [[1,0,0],[1,1,1],[0,0,0]],
+L: [[0,0,1],[1,1,1],[0,0,0]]
+};
+const COLORS = { I:"#3ee0c1", O:"#ffd23f", T:"#b36bff", S:"#5fd35f", Z:"#ff5a5a", J:"#4b8bff", L:"#ff9a3c" };
+const TYPES = Object.keys(SHAPES);
+
+let board, cur, hold, canHold, queue, bag, score, lines, level, best = 0;
+let state = "ready", dropAcc = 0, lockTimer = 0, lockResets = 0, last = 0;
+try { best = parseInt(localStorage.getItem("besttetris")) || 0; } catch (e) {}
+
+// ---------- pieces ----------
+function nextType(){
+if (!bag.length){
+bag = TYPES.slice();
+for (let i = bag.length - 1; i > 0; i--){ const j = Math.floor(Math.random() * (i + 1)); [bag[i], bag[j]] = [bag[j], bag[i]]; }
+}
+return bag.pop();
+}
+function makePiece(t){
+const m = SHAPES[t].map(r => r.slice());
+return { t, m, x: Math.floor((COLS - m[0].length) / 2), y: t === "I" ? -1 : 0 };
+}
+function collide(m, x, y){
+for (let r = 0; r < m.length; r++) for (let c = 0; c < m[r].length; c++){
+if (!m[r][c]) continue;
+const nx = x + c, ny = y + r;
+if (nx < 0 || nx >= COLS || ny >= ROWS) return true;
+if (ny >= 0 && board[ny][nx]) return true;
+}
+return false;
+}
+function rotM(m, dir){
+const n = m.length, o = m.map(r => r.slice());
+for (let r = 0; r < n; r++) for (let c = 0; c < n; c++){
+if (dir > 0) o[c][n - 1 - r] = m[r][c]; else o[n - 1 - c][r] = m[r][c];
+}
+return o;
+}
+function spawn(){
+cur = makePiece(queue.shift());
+queue.push(nextType());
+canHold = true; lockTimer = 0; lockResets = 0; dropAcc = 0;
+if (collide(cur.m, cur.x, cur.y)) endGame();
+}
+
+// ---------- actions ----------
+function bumpLock(){ if (!collide(cur.m, cur.x, cur.y + 1)) { lockTimer = 0; } else if (lockResets < 15){ lockTimer = 0; lockResets++; } }
+function shift(dx){
+if (state !== "play") return;
+if (!collide(cur.m, cur.x + dx, cur.y)){ cur.x += dx; bumpLock(); }
+}
+function softDrop(){
+if (state !== "play") return;
+if (!collide(cur.m, cur.x, cur.y + 1)){ cur.y++; score++; dropAcc = 0; updateHud(); }
+}
+function hardDrop(){
+if (state !== "play") return;
+let d = 0;
+while (!collide(cur.m, cur.x, cur.y + 1)){ cur.y++; d++; }
+score += d * 2; lock();
+}
+function rotate(dir){
+if (state !== "play" || cur.t === "O") return;
+const nm = rotM(cur.m, dir);
+for (const dy of [0, -1]) for (const dx of [0, -1, 1, -2, 2]){
+if (!collide(nm, cur.x + dx, cur.y + dy)){
+cur.m = nm; cur.x += dx; cur.y += dy; bumpLock(); return;
+}
+}
+}
+function doHold(){
+if (state !== "play" || !canHold) return;
+const t = cur.t;
+if (hold){ cur = makePiece(hold); hold = t; }
+else { hold = t; spawn(); }
+canHold = false; lockTimer = 0; lockResets = 0; dropAcc = 0;
+}
+function lock(){
+for (let r = 0; r < cur.m.length; r++) for (let c = 0; c < cur.m[r].length; c++){
+if (!cur.m[r][c]) continue;
+const y = cur.y + r;
+if (y < 0){ endGame(); return; }
+board[y][cur.x + c] = cur.t;
+}
+let cleared = 0;
+for (let r = ROWS - 1; r >= 0; r--){
+if (board[r].every(Boolean)){ board.splice(r, 1); board.unshift(Array(COLS).fill(0)); cleared++; r++; }
+}
+if (cleared){
+score += [0, 100, 300, 500, 800][cleared] * level;
+lines += cleared;
+level = 1 + Math.floor(lines / 10);
+}
+if (score > best){ best = score; try { localStorage.setItem("besttetris", best); } catch (e) {} }
+updateHud();
+if (state === "play") spawn();
+}
+
+// ---------- state ----------
+function newGame(){
+board = Array.from({ length: ROWS }, () => Array(COLS).fill(0));
+bag = []; queue = []; hold = null; score = 0; lines = 0; level = 1;
+for (let i = 0; i < 4; i++) queue.push(nextType());
+state = "play"; $("ov").classList.add("hide");
+spawn(); updateHud(); last = performance.now();
+}
+function endGame(){
+state = "over";
+$("ovT").textContent = "Game over";
+$("ovS").textContent = "Score " + score + " | Lines " + lines;
+$("go").textContent = "Play again";
+$("ov").classList.remove("hide");
+}
+function togglePause(){
+if (state === "play"){ state = "pause"; $("ovT").textContent = "Paused"; $("ovS").textContent = ""; $("go").textContent = "Resume"; $("ov").classList.remove("hide"); }
+else if (state === "pause"){ state = "play"; $("ov").classList.add("hide"); last = performance.now(); }
+}
+function updateHud(){
+$("score").textContent = score; $("lines").textContent = lines;
+$("level").textContent = level; $("best").textContent = best;
+}
+
+// ---------- drawing ----------
+function block(ctx, x, y, s, color, alpha){
+ctx.globalAlpha = alpha || 1;
+ctx.fillStyle = color; ctx.fillRect(x + 1, y + 1, s - 2, s - 2);
+ctx.fillStyle = "rgba(255,255,255,.28)"; ctx.fillRect(x + 1, y + 1, s - 2, 4);
+ctx.fillStyle = "rgba(0,0,0,.25)"; ctx.fillRect(x + 1, y + s - 5, s - 2, 4);
+ctx.globalAlpha = 1;
+}
+function mini(ctx, t, cx, cy, s){
+const m = SHAPES[t]; let minR = 9, maxR = -1, minC = 9, maxC = -1;
+m.forEach((row, r) => row.forEach((v, c) => { if (v){ minR = Math.min(minR, r); maxR = Math.max(maxR, r); minC = Math.min(minC, c); maxC = Math.max(maxC, c); } }));
+const w = (maxC - minC + 1) * s, h = (maxR - minR + 1) * s;
+m.forEach((row, r) => row.forEach((v, c) => { if (v) block(ctx, cx - w / 2 + (c - minC) * s, cy - h / 2 + (r - minR) * s, s, COLORS[t]); }));
+}
+function draw(){
+bctx.clearRect(0, 0, 300, 600);
+bctx.strokeStyle = "rgba(255,255,255,.05)"; bctx.lineWidth = 1; bctx.beginPath();
+for (let i = 1; i < COLS; i++){ bctx.moveTo(i * CS, 0); bctx.lineTo(i * CS, 600); }
+for (let i = 1; i < ROWS; i++){ bctx.moveTo(0, i * CS); bctx.lineTo(300, i * CS); }
+bctx.stroke();
+for (let r = 0; r < ROWS; r++) for (let c = 0; c < COLS; c++) if (board[r][c]) block(bctx, c * CS, r * CS, CS, COLORS[board[r][c]]);
+if (cur && state !== "over"){
+let gy = cur.y; while (!collide(cur.m, cur.x, gy + 1)) gy++;
+cur.m.forEach((row, r) => row.forEach((v, c) => {
+if (!v) return;
+if (gy + r >= 0) block(bctx, (cur.x + c) * CS, (gy + r) * CS, CS, COLORS[cur.t], 0.22);
+if (cur.y + r >= 0) block(bctx, (cur.x + c) * CS, (cur.y + r) * CS, CS, COLORS[cur.t]);
+}));
+}
+hctx.clearRect(0, 0, 100, 80);
+if (hold) mini(hctx, hold, 50, 40, 20);
+nctx.clearRect(0, 0, 100, 270);
+queue.slice(0, 3).forEach((t, i) => mini(nctx, t, 50, 45 + i * 90, 20));
+}
+
+// ---------- loop ----------
+function frame(now){
+const dt = Math.min(100, now - last); last = now;
+if (state === "play"){
+const interval = Math.max(70, 800 - (level - 1) * 70);
+if (!collide(cur.m, cur.x, cur.y + 1)){
+lockTimer = 0; dropAcc += dt;
+if (dropAcc >= interval){ dropAcc = 0; cur.y++; }
+} else {
+lockTimer += dt;
+if (lockTimer >= 450) lock();
+}
+}
+if (board) draw();
+requestAnimationFrame(frame);
+}
+
+// ---------- input ----------
+addEventListener("keydown", e => {
+const k = e.code;
+if (["ArrowUp","ArrowDown","ArrowLeft","ArrowRight","Space"].includes(k)) e.preventDefault();
+if (k === "KeyP" || k === "Escape") return togglePause();
+if (k === "Enter" && state !== "play"){ if (state === "pause") togglePause(); else newGame(); return; }
+if (k === "ArrowLeft" || k === "KeyA") shift(-1);
+else if (k === "ArrowRight" || k === "KeyD") shift(1);
+else if (k === "ArrowDown" || k === "KeyS") softDrop();
+else if (k === "ArrowUp" || k === "KeyW" || k === "KeyX") rotate(1);
+else if (k === "KeyZ") rotate(-1);
+else if (k === "Space") hardDrop();
+else if (k === "KeyC" || k === "ShiftLeft" || k === "ShiftRight") doHold();
+});
+
+$("go").onclick = () => { if (state === "pause") togglePause(); else newGame(); };
+
+// touch buttons
+const act = { left: () => shift(-1), right: () => shift(1), down: softDrop, rot: () => rotate(1), drop: hardDrop, hold: doHold };
+document.querySelectorAll(".pad button").forEach(b => {
+let timer;
+const stop = () => { clearInterval(timer); };
+b.addEventListener("pointerdown", e => {
+e.preventDefault(); act[b.dataset.a]();
+if (b.dataset.rep) timer = setInterval(act[b.dataset.a], 110);
+});
+["pointerup", "pointerleave", "pointercancel"].forEach(ev => b.addEventListener(ev, stop));
+});
+
+// idle screen setup
+board = Array.from({ length: ROWS }, () => Array(COLS).fill(0));
+queue = []; bag = []; for (let i = 0; i < 4; i++) queue.push(nextType());
+updateHud();
+requestAnimationFrame(t => { last = t; frame(t); });
+})();
+</script>
+</body>
+</html>
