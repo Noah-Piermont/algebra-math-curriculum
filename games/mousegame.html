@@ -40,18 +40,18 @@ button:focus-visible{outline:3px solid var(--tom);outline-offset:2px}
 </head>
 <body>
 <div id="hud">
-  <div class="card"><div id="money">$0</div><div id="rank" style="font-weight:700"></div></div>
-  <div class="card" id="alert"><span id="alv"></span><div id="sus"><div id="susf"></div></div></div>
-  <div class="card" id="side"><div id="day"></div><div id="room"></div></div>
+  <div class="card"><div id="money">$0</div><div id="rank" style="font-weight:700"></div></div>
+  <div class="card" id="alert"><span id="alv"></span><div id="sus"><div id="susf"></div></div></div>
+  <div class="card" id="side"><div id="day"></div><div id="room"></div></div>
 </div>
 <div id="flash"></div><div id="toast"></div>
 <div id="bar"><button id="bPoop">💩 Surprise</button><button id="bShop">Home</button><button id="bMis">Missions</button></div>
 <div id="panel" class="hide"></div>
 <div id="intro"><div class="card">
-  <h1>Mouse Mansion 🧀</h1>
-  <p>You are a homeless mouse in a house full of giant furniture. Steal snacks, hide from the human, and build the greatest mouse mansion on the block.</p>
-  <p><b>Move:</b> WASD / arrows, or drag the left half of a touch screen.<br><b>New maps:</b> the colored holes in the walls lead to the Kitchen, Attic and Backyard, where a cat prowls. Your black mouse hole is your home.<br><b>Look around:</b> drag the right half (or click-drag, or Q/R).<br><b>Surprise:</b> Space or E (15s cooldown, never in your safe zone).<br><b>Home:</b> walk into your mouse hole, or press B. <b>Missions:</b> M<br>Hide under glowing green rings. If the human spots you, run into the yellow safe circle around your mouse hole. He can't enter it.</p>
-  <button id="go">Start sneaking</button>
+  <h1>Mouse Mansion 🧀</h1>
+  <p>You are a homeless mouse in a house full of giant furniture. Steal snacks, hide from the human, and build the greatest mouse mansion on the block.</p>
+  <p><b>Move:</b> WASD / arrows, or drag the left half of a touch screen.<br><b>Money:</b> what you carry can be lost if you're caught (20%). At the end of each day it goes into your safe bank. You can spend both.<br><b>New maps:</b> the colored holes in the walls lead to the Kitchen, Attic and Backyard, where a cat prowls. Your black mouse hole is your home.<br><b>Look around:</b> drag the right half (or click-drag, or Q/R).<br><b>Surprise:</b> Space or E (15s cooldown, never in your safe zone).<br><b>Home:</b> walk into your mouse hole, or press B. <b>Missions:</b> M<br>Hide under glowing green rings. If the human spots you, run into the yellow safe circle around your mouse hole. He can't enter it.</p>
+  <button id="go">Start sneaking</button>
 </div></div>
 
 <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
@@ -67,7 +67,7 @@ const rnd=(a,b)=>a+Math.random()*(b-a);
 const UPG=[['Cardboard bed',100],['Cheese wallpaper',250],['Mini fridge',500],['Cheese swimming pool',2000],['Golden mouse throne',5000],['Luxury mouse mansion',25000]];
 const MIS=[['Eat 10 pieces of cheese',()=>G.cheese>=10],['Leave 15 little surprises around the house',()=>G.poop>=15],['Find the secret chocolate stash',()=>G.choc],['Survive 5 minutes without being spotted',()=>G.stealth>=300],['Steal a giant piece of pizza',()=>G.big],['Earn $1,000 in one day',()=>dayEarn>=1000]];
 const HINT=['Cheese is everywhere. Eat ten pieces.','Keep dropping them. Use the button or Space.','Something sweet is hidden in the bedroom.','Hide under rings and stay out of sight.','The garage has a giant pizza box.','Wheels and pizza pay best.'];
-const DEF={money:0,life:0,owned:[],day:1,done:[],cheese:0,poop:0,choc:0,big:0,stealth:0};
+const DEF={bank:0,money:0,life:0,owned:[],day:1,done:[],cheese:0,poop:0,choc:0,big:0,stealth:0};
 let G=Object.assign({},DEF);
 try{const s=JSON.parse(localStorage.getItem('mousemansion')||'null');if(s)G=Object.assign({},DEF,s)}catch(e){}
 const save=()=>{try{localStorage.setItem('mousemansion',JSON.stringify(G))}catch(e){}};
@@ -87,7 +87,7 @@ const S=[];
 function B(x,z,w,d,h,c,o={}){const m=new THREE.Mesh(new THREE.BoxGeometry(w,h,d),Mt(c));m.position.set(x,(o.y||0)+h/2,z);m.castShadow=m.receiveShadow=true;scene.add(m);if(o.s!==false&&!o.y)S.push([x-w/2,x+w/2,z-d/2,z+d/2]);return m}
 function Cy(x,y,z,r,h,c,seg=16){const m=new THREE.Mesh(new THREE.CylinderGeometry(r,r,h,seg),Mt(c));m.position.set(x,y,z);m.castShadow=true;scene.add(m);return m}
 function label(t,x,z){const c=document.createElement('canvas');c.width=512;c.height=128;const g=c.getContext('2d');g.font='800 72px "Baloo 2",Trebuchet MS,sans-serif';g.textAlign='center';g.fillStyle='rgba(29,27,58,.45)';g.fillText(t,256,88);
-  const m=new THREE.Mesh(new THREE.PlaneGeometry(12,3),new THREE.MeshBasicMaterial({map:new THREE.CanvasTexture(c),transparent:true}));m.rotation.x=-Math.PI/2;m.position.set(x,.03,z);scene.add(m)}
+  const m=new THREE.Mesh(new THREE.PlaneGeometry(12,3),new THREE.MeshBasicMaterial({map:new THREE.CanvasTexture(c),transparent:true}));m.rotation.x=-Math.PI/2;m.position.set(x,.03,z);scene.add(m)}
 
 const R=[{n:'Living room',x:-12,z:-12,c:0xf0c27a,d:'Hide in couches, steal snacks.'},{n:'Bedroom',x:12,z:-12,c:0xa9c1ee,d:'Explore drawers, hide under the bed.'},{n:'Bathroom',x:-12,z:12,c:0xa6e4da,d:'Find water and mysterious objects.'},{n:'Garage',x:12,z:12,c:0xb4b6c2,d:'Rare food and building materials.'}];
 R.forEach(r=>{const f=new THREE.Mesh(new THREE.PlaneGeometry(24,24),Mt(r.c));f.rotation.x=-Math.PI/2;f.position.set(r.x,0,r.z);f.receiveShadow=true;scene.add(f);label(r.n,r.x,r.z+(r.z<0?-9:9))});
@@ -135,7 +135,6 @@ B(22.7,10,2,9,6.5,0x6b6f7e);
 [0,.8,1.6].forEach(y=>Cy(4.5,.4+y,6,1.5,.8,0x25252b,14));S.push([3,6,4.5,7.5]);
 B(9.5,5.5,3,3,3,0xb08850);B(9.5,5.5,3.1,.4,.05,0xe8d8a8,{y:3});B(12.4,7,2,2,2,0xc29a5e);
 table(5,22.8,6,2,3.4,0xa88252);B(4,22.8,.4,.4,1,0xc0392b,{y:3.4});B(10,23,2.2,1.2,1.2,0xd04a3a);
-Cy(2.2,1.2,12,1.2,2.4,0x6a707c,12);S.push([1,3.4,10.8,13.2]);
 const HZ=[[-11,-22.9],[-11,-12],[17,-17.8],[-4,11.6],[14,19]];
 HZ.forEach(([x,z])=>{const r=new THREE.Mesh(new THREE.RingGeometry(1.6,2,24),new THREE.MeshBasicMaterial({color:0x5fd0b0,transparent:true,opacity:.8}));r.rotation.x=-Math.PI/2;r.position.set(x,.06,z);scene.add(r)});
 const hiding=p=>HZ.some(([x,z])=>Math.hypot(p.x-x,p.z-z)<2);
@@ -145,12 +144,12 @@ const HOLE=new THREE.Vector3(-23.6,0,-6);
 const hole=new THREE.Mesh(new THREE.CircleGeometry(1.5,16,0,Math.PI),new THREE.MeshBasicMaterial({color:0x2a1a14}));hole.rotation.y=Math.PI/2;hole.position.set(-23.9,0,-6);scene.add(hole);
 const SAFE=6;{const sr=new THREE.Mesh(new THREE.RingGeometry(SAFE-.2,SAFE,40,1,0,Math.PI*2),new THREE.MeshBasicMaterial({color:0xffc83d,transparent:true,opacity:.55}));sr.rotation.x=-Math.PI/2;sr.position.set(HOLE.x,.05,HOLE.z);scene.add(sr)}
 const decor=[
-()=>{B(-21.5,-9.5,3,2,.6,0xc8a26a,{y:0,s:false});B(-22.4,-9.5,1,1.4,.4,0xffb6c8,{y:.6,s:false})},
-()=>{const p=new THREE.Mesh(new THREE.PlaneGeometry(9,5),new THREE.MeshBasicMaterial({color:0xffd75e}));p.rotation.y=Math.PI/2;p.position.set(-23.93,2.5,-6);scene.add(p);hole.position.x=-23.85},
-()=>B(-22.3,-2.6,2,2,3.4,0xffffff,{s:false}),
-()=>Cy(-19,.2,-12.5,2.4,.4,0x4fd0e8),
-()=>{B(-21.5,-15,2.4,2.4,1.6,0xf2b705,{s:false});B(-22.4,-15,.6,2.4,4,0xf2b705,{s:false})},
-()=>{B(-21,-21.3,5,4,4,0xff8fb1,{s:false});const r=new THREE.Mesh(new THREE.ConeGeometry(3.8,2.6,4),Mt(0xe0455f));r.position.set(-21,5.3,-21.3);r.rotation.y=Math.PI/4;scene.add(r)}];
+ ()=>{B(-21.5,-9.5,3,2,.6,0xc8a26a,{y:0,s:false});B(-22.4,-9.5,1,1.4,.4,0xffb6c8,{y:.6,s:false})},
+ ()=>{const p=new THREE.Mesh(new THREE.PlaneGeometry(9,5),new THREE.MeshBasicMaterial({color:0xffd75e}));p.rotation.y=Math.PI/2;p.position.set(-23.93,2.5,-6);scene.add(p);hole.position.x=-23.85},
+ ()=>B(-22.3,-2.6,2,2,3.4,0xffffff,{s:false}),
+ ()=>Cy(-19,.2,-12.5,2.4,.4,0x4fd0e8),
+ ()=>{B(-21.5,-15,2.4,2.4,1.6,0xf2b705,{s:false});B(-22.4,-15,.6,2.4,4,0xf2b705,{s:false})},
+ ()=>{B(-21,-21.3,5,4,4,0xff8fb1,{s:false});const r=new THREE.Mesh(new THREE.ConeGeometry(3.8,2.6,4),Mt(0xe0455f));r.position.set(-21,5.3,-21.3);r.rotation.y=Math.PI/4;scene.add(r)}];
 const built=new Set();
 function refreshHome(){buildHome()}
 
@@ -160,7 +159,7 @@ const body=new THREE.Mesh(new THREE.SphereGeometry(.55,10,8),Mt(0xb9b2c4));body.
 const head=new THREE.Mesh(new THREE.SphereGeometry(.36,10,8),Mt(0xc7c0d2));head.position.set(0,.6,.8);mouse.add(head);
 const nose=new THREE.Mesh(new THREE.SphereGeometry(.1,8,6),Mt(0xff7aa2));nose.position.set(0,.58,1.15);mouse.add(nose);
 [-1,1].forEach(s=>{const e=new THREE.Mesh(new THREE.CylinderGeometry(.24,.24,.05,10),Mt(0xffb6c8));e.rotation.z=Math.PI/2;e.rotation.y=0;e.rotation.x=Math.PI/2;e.position.set(s*.28,.98,.65);e.rotation.set(Math.PI/2,0,0);mouse.add(e);
-  const y=new THREE.Mesh(new THREE.SphereGeometry(.05,6,6),Mt(0x111111));y.position.set(s*.16,.72,1.08);mouse.add(y)});
+  const y=new THREE.Mesh(new THREE.SphereGeometry(.05,6,6),Mt(0x111111));y.position.set(s*.16,.72,1.08);mouse.add(y)});
 const tail=new THREE.Group();tail.position.set(0,.35,-.8);const tl=new THREE.Mesh(new THREE.CylinderGeometry(.04,.07,1.3,6),Mt(0xff9db8));tl.rotation.x=Math.PI/2;tl.position.z=-.65;tail.add(tl);mouse.add(tail);
 mouse.position.set(-21,0,-6);
 const mouseMats=[];mouse.traverse(o=>{if(o.material){o.material.transparent=true;mouseMats.push(o.material)}});
@@ -181,60 +180,60 @@ const hs={tx:12,tz:-10,wait:1};
 const T={cheese:{v:10,m:'Cheese!'},wheel:{v:100,m:'A whole cheese wheel!'},pizza:{v:20,m:'Leftover pizza'},hidden:{v:25,m:'Hidden snack found!'},choc:{v:200,m:'Secret chocolate stash!'},big:{v:200,m:'Giant pizza stolen!'}};
 const items=[];
 function mkItem(t,x,z){let m;
-if(t==='cheese'){m=new THREE.Mesh(new THREE.CylinderGeometry(.7,.7,.7,3),Mt(0xffc83d));const h=new THREE.Mesh(new THREE.SphereGeometry(.14,6,6),Mt(0xd89a10));h.position.set(.25,.36,.1);m.add(h)}
-else if(t==='wheel')m=new THREE.Mesh(new THREE.CylinderGeometry(1.5,1.5,1,18),Mt(0xf2a81c));
-else if(t==='pizza'){m=new THREE.Mesh(new THREE.CylinderGeometry(.9,.9,.25,3),Mt(0xe6b36a));const pp=new THREE.Mesh(new THREE.CylinderGeometry(.22,.22,.1,8),Mt(0xc9302c));pp.position.set(.2,.15,0);m.add(pp)}
-else if(t==='hidden')m=new THREE.Mesh(new THREE.SphereGeometry(.45,8,6),Mt(0xf5df4d));
-else if(t==='choc'){m=new THREE.Mesh(new THREE.BoxGeometry(1.4,.8,.9),Mt(0x5a3420))}
-else{m=new THREE.Mesh(new THREE.CylinderGeometry(2.4,2.4,.5,10),Mt(0xeab35e));const p=new THREE.Mesh(new THREE.CylinderGeometry(.35,.35,.1,8),Mt(0xc9302c));p.position.set(.8,.3,.5);m.add(p)}
-m.position.set(x,.55,z);m.castShadow=true;scene.add(m);const it={t,m,x,z,y:.55+(t==='big'?.1:0)};items.push(it);if(t==='hidden'||t==='choc')m.visible=false;return it}
+ if(t==='cheese'){m=new THREE.Mesh(new THREE.CylinderGeometry(.7,.7,.7,3),Mt(0xffc83d));const h=new THREE.Mesh(new THREE.SphereGeometry(.14,6,6),Mt(0xd89a10));h.position.set(.25,.36,.1);m.add(h)}
+ else if(t==='wheel')m=new THREE.Mesh(new THREE.CylinderGeometry(1.5,1.5,1,18),Mt(0xf2a81c));
+ else if(t==='pizza'){m=new THREE.Mesh(new THREE.CylinderGeometry(.9,.9,.25,3),Mt(0xe6b36a));const pp=new THREE.Mesh(new THREE.CylinderGeometry(.22,.22,.1,8),Mt(0xc9302c));pp.position.set(.2,.15,0);m.add(pp)}
+ else if(t==='hidden')m=new THREE.Mesh(new THREE.SphereGeometry(.45,8,6),Mt(0xf5df4d));
+ else if(t==='choc'){m=new THREE.Mesh(new THREE.BoxGeometry(1.4,.8,.9),Mt(0x5a3420))}
+ else{m=new THREE.Mesh(new THREE.CylinderGeometry(2.4,2.4,.5,10),Mt(0xeab35e));const p=new THREE.Mesh(new THREE.CylinderGeometry(.35,.35,.1,8),Mt(0xc9302c));p.position.set(.8,.3,.5);m.add(p)}
+ m.position.set(x,.55,z);m.castShadow=true;scene.add(m);const it={t,m,x,z,y:.55+(t==='big'?.1:0)};items.push(it);if(t==='hidden'||t==='choc')m.visible=false;return it}
 const blocked=(x,z,p)=>S.some(b=>x>b[0]-p&&x<b[1]+p&&z>b[2]-p&&z<b[3]+p);
 function spot(r){for(let i=0;i<40;i++){const x=r.x+rnd(-10,10),z=r.z+rnd(-10,10);if(!blocked(x,z,1.8))return[x,z]}return[r.x,r.z]}
 function clearItems(){for(let i=items.length-1;i>=0;i--){const it=items[i];if(it.t!=='choc'&&it.t!=='big'){scene.remove(it.m);items.splice(i,1)}}}
 function spawnDay(){clearItems();
-for(let i=0;i<9;i++)mkItem('cheese',...spot(R[i%4]));
-mkItem('wheel',...spot(R[Math.random()*4|0]));
-for(let i=0;i<2;i++)mkItem('pizza',...spot(R[Math.random()*4|0]));
-HZ.slice(0,5).sort(()=>Math.random()-.5).slice(0,3).forEach(([x,z])=>mkItem('hidden',x+rnd(-.6,.6),z+rnd(-.6,.6)));spawnMaps()}
+ for(let i=0;i<14;i++)mkItem('cheese',...spot(R[i%4]));
+ mkItem('wheel',...spot(R[Math.random()*4|0]));mkItem('wheel',...spot(R[Math.random()*4|0]));
+ for(let i=0;i<3;i++)mkItem('pizza',...spot(R[Math.random()*4|0]));
+ HZ.slice(0,5).sort(()=>Math.random()-.5).slice(0,3).forEach(([x,z])=>mkItem('hidden',x+rnd(-.6,.6),z+rnd(-.6,.6)));spawnMaps()}
 /* ---------- extra maps, portals, cat, home ---------- */
 const MAPS=[null,{n:'Kitchen',ox:100,c:0xf3eee2,h:14},{n:'Attic',ox:200,c:0x9a7a52,h:14},{n:'Backyard',ox:300,c:0x6fbf5a,h:14},{n:'Home',ox:400,c:0x7a5a45,h:10}];
 const P=[{f:0,x:HOLE.x,z:HOLE.z,m:4,tx:400,tz:6}],MZ={1:[],2:[],3:[]};
 let cur=0,paused=false,plock=false,slock=false,catWarn=0,D={cheese:0,poop:0,hid:0,caught:0,m:[]};
 function room(m,wc,wh){const f=new THREE.Mesh(new THREE.PlaneGeometry(m.h*2,m.h*2),Mt(m.c));f.rotation.x=-Math.PI/2;f.position.set(m.ox,0,0);f.receiveShadow=true;scene.add(f);const h=m.h,o=m.ox;
-[[o,-h-.25,2*h+1,.5],[o,h+.25,2*h+1,.5],[o-h-.25,0,.5,2*h],[o+h+.25,0,.5,2*h]].forEach(([x,z,w,d])=>B(x,z,w,d,wh,wc))}
+ [[o,-h-.25,2*h+1,.5],[o,h+.25,2*h+1,.5],[o-h-.25,0,.5,2*h],[o+h+.25,0,.5,2*h]].forEach(([x,z,w,d])=>B(x,z,w,d,wh,wc))}
 function addHZ(m,x,z){HZ.push([x,z]);MZ[m].push([x,z]);const r=new THREE.Mesh(new THREE.RingGeometry(1.6,2,24),new THREE.MeshBasicMaterial({color:0x5fd0b0,transparent:true,opacity:.8}));r.rotation.x=-Math.PI/2;r.position.set(x,.06,z);scene.add(r)}
 function mkPortal(f,x,z,ry,col,t,lx,lz,m,tx,tz){const d=new THREE.Mesh(new THREE.CircleGeometry(1.5,16,0,Math.PI),new THREE.MeshBasicMaterial({color:0x2a1a14,side:THREE.DoubleSide}));d.rotation.y=ry;d.position.set(x,.02,z);scene.add(d);
-const r=new THREE.Mesh(new THREE.TorusGeometry(1.5,.13,6,16,Math.PI),new THREE.MeshBasicMaterial({color:col}));r.rotation.y=ry;r.position.copy(d.position);scene.add(r);label(t,x+lx,z+lz);P.push({f,x,z,m,tx,tz})}
+ const r=new THREE.Mesh(new THREE.TorusGeometry(1.5,.13,6,16,Math.PI),new THREE.MeshBasicMaterial({color:col}));r.rotation.y=ry;r.position.copy(d.position);scene.add(r);label(t,x+lx,z+lz);P.push({f,x,z,m,tx,tz})}
 const chair=(x,z,bx,bz)=>{table(x,z,2.2,2.2,2,0xb98a56);B(x+bx,z+bz,bz?2.2:.3,bz?.3:2.2,2.2,0xb98a56,{y:2})};
 /* kitchen */
 {room(MAPS[1],0xe9dcc0,3);flat(100,2,11,8,0xcf6a5a);
-B(96,-12.2,14,2.6,3.4,0xd9c9a8);B(96,-12.2,14.4,2.8,.4,0x6b6b78,{y:3.4});
-B(106,-12.2,3.4,2.6,3.6,0x2e2e38);[0,1].forEach(i=>[0,1].forEach(j=>Cy(105.2+i*1.6,3.65,-12.9+j*1.3,.5,.1,0x111111,10)));
-B(111.5,-11.5,3.8,3.8,9,0xf4f4f4);B(109.55,-11.5,.15,.2,3,0x999999,{y:3});
-B(87.6,2,2.6,12,3.4,0xd9c9a8);B(87.6,2,2.8,12.4,.4,0x6b6b78,{y:3.4});
-table(100,2,8,5,3.6,0x9a6a3a);chair(100,6.2,0,1.05);chair(100,-2.2,0,-1.05);chair(93.8,2,-1.05,0);chair(106.2,2,1.05,0);
-Cy(100,3.8,2,1,.4,0xd9b26a,12);Cy(91.5,1.4,10,1.3,2.8,0x6a707c,12);S.push([90.2,92.8,8.7,11.3]);
-addHZ(1,100,2);addHZ(1,91.5,12.3);
-mkPortal(1,86.15,10,Math.PI/2,0xffc83d,'To house',2.5,0,0,21.8,-16)}
+ B(96,-12.2,14,2.6,3.4,0xd9c9a8);B(96,-12.2,14.4,2.8,.4,0x6b6b78,{y:3.4});
+ B(106,-12.2,3.4,2.6,3.6,0x2e2e38);[0,1].forEach(i=>[0,1].forEach(j=>Cy(105.2+i*1.6,3.65,-12.9+j*1.3,.5,.1,0x111111,10)));
+ B(111.5,-11.5,3.8,3.8,9,0xf4f4f4);B(109.55,-11.5,.15,.2,3,0x999999,{y:3});
+ B(87.6,2,2.6,12,3.4,0xd9c9a8);B(87.6,2,2.8,12.4,.4,0x6b6b78,{y:3.4});
+ table(100,2,8,5,3.6,0x9a6a3a);chair(100,6.2,0,1.05);chair(100,-2.2,0,-1.05);chair(93.8,2,-1.05,0);chair(106.2,2,1.05,0);
+ Cy(100,3.8,2,1,.4,0xd9b26a,12);Cy(91.5,1.4,10,1.3,2.8,0x6a707c,12);S.push([90.2,92.8,8.7,11.3]);
+ addHZ(1,100,2);addHZ(1,91.5,12.3);
+ mkPortal(1,86.15,10,Math.PI/2,0xffc83d,'To house',2.5,0,0,21.8,-16)}
 /* attic */
 {room(MAPS[2],0x8a6e4a,3);flat(200,-1,9,6,0x9a4a4a);
-B(194,-8,5,3,3,0x6b4a2a);B(194,-8,5.2,3.2,.6,0x8a5a3a,{y:3});B(194,-6.45,.8,.2,.8,0xd9c27a,{y:1.5});
-B(207,-9,4,3,2.6,0x6b4a2a);B(207,-9,4.2,3.2,.5,0x8a5a3a,{y:2.6});
-B(203,4,8,3.4,2.4,0x8a6a8a);B(203,5.5,8,.9,4.6,0x70527a);B(199.3,4.2,1.2,3.4,3.2,0x70527a);B(206.7,4.2,1.2,3.4,3.2,0x70527a);
-B(192,5,3,3,3,0xb08850);B(192,5,2.2,2.2,2.2,0xc29a5e,{y:3});B(189.5,10,2.4,2.4,2.4,0xc29a5e);
-Cy(209,2.8,-2,.2,5.6,0x555566,6);lamp(209,5.2,-2,0xffe9a8);S.push([208.6,209.4,-2.4,-1.6]);
-{const w=new THREE.Mesh(new THREE.CircleGeometry(2.4,20),new THREE.MeshBasicMaterial({color:0xbfe8ff}));w.position.set(200,6,-13.7);scene.add(w);const fr=new THREE.Mesh(new THREE.RingGeometry(2.4,2.9,20),new THREE.MeshBasicMaterial({color:0x6b4a2a}));fr.position.set(200,6,-13.69);scene.add(fr)}
-addHZ(2,194,-11.6);addHZ(2,192,8.6);
-mkPortal(2,213.85,0,-Math.PI/2,0xb48cff,'To house',-3.2,0,0,14.8,22.4)}
+ B(194,-8,5,3,3,0x6b4a2a);B(194,-8,5.2,3.2,.6,0x8a5a3a,{y:3});B(194,-6.45,.8,.2,.8,0xd9c27a,{y:1.5});
+ B(207,-9,4,3,2.6,0x6b4a2a);B(207,-9,4.2,3.2,.5,0x8a5a3a,{y:2.6});
+ B(203,4,8,3.4,2.4,0x8a6a8a);B(203,5.5,8,.9,4.6,0x70527a);B(199.3,4.2,1.2,3.4,3.2,0x70527a);B(206.7,4.2,1.2,3.4,3.2,0x70527a);
+ B(192,5,3,3,3,0xb08850);B(192,5,2.2,2.2,2.2,0xc29a5e,{y:3});B(189.5,10,2.4,2.4,2.4,0xc29a5e);
+ Cy(209,2.8,-2,.2,5.6,0x555566,6);lamp(209,5.2,-2,0xffe9a8);S.push([208.6,209.4,-2.4,-1.6]);
+ {const w=new THREE.Mesh(new THREE.CircleGeometry(2.4,20),new THREE.MeshBasicMaterial({color:0xbfe8ff}));w.position.set(200,6,-13.7);scene.add(w);const fr=new THREE.Mesh(new THREE.RingGeometry(2.4,2.9,20),new THREE.MeshBasicMaterial({color:0x6b4a2a}));fr.position.set(200,6,-13.69);scene.add(fr)}
+ addHZ(2,194,-11.6);addHZ(2,192,8.6);
+ mkPortal(2,213.85,0,-Math.PI/2,0xb48cff,'To house',-3.2,0,0,14.8,22.4)}
 /* backyard */
 {room(MAPS[3],0xf4f4f4,1.6);
-B(306,-7,2,2,7,0x6b4a2a);{const t=new THREE.Mesh(new THREE.SphereGeometry(4.6,10,8),Mt(0x3f9e4a));t.position.set(306,9,-7);t.castShadow=true;scene.add(t)}
-B(294,-8,5,5,3.5,0xc0504d);B(294,-5.45,1.8,.1,2,0x1a1210,{s:false});{const r=new THREE.Mesh(new THREE.ConeGeometry(4.2,2.2,4),Mt(0x8a3a30));r.position.set(294,4.6,-8);r.rotation.y=Math.PI/4;scene.add(r)}
-[[306,6],[309,2.5],[291,-1]].forEach(([x,z])=>{Cy(x,.7,z,.8,1.4,0xc2703a,10);[-.3,.3].forEach((d,i)=>{const f=new THREE.Mesh(new THREE.SphereGeometry(.45,6,5),Mt([0xff5f8a,0xffd23f][i]));f.position.set(x+d,1.9,z);scene.add(f)});S.push([x-.8,x+.8,z-.8,z+.8])});
-Cy(300,1,0,.5,2,0xb9b9c4,8);Cy(300,2.1,0,1.6,.4,0xb9b9c4,12);S.push([299.4,300.6,-.6,.6]);
-[[292,6],[310,9]].forEach(([x,z])=>{const b=new THREE.Mesh(new THREE.SphereGeometry(2.2,8,6),Mt(0x2f8a3a));b.position.set(x,1.6,z);b.castShadow=true;scene.add(b);addHZ(3,x,z)});
-Cy(303,.9,9,.5,1.8,0x4a7bd0,8);{const hat=new THREE.Mesh(new THREE.ConeGeometry(.6,1.2,8),Mt(0xd6392f));hat.position.set(303,2.4,9);scene.add(hat)}S.push([302.4,303.6,8.4,9.6]);
-mkPortal(3,300,13.85,Math.PI,0x6ee27a,'To house',0,-3.2,0,-21.5,12)}
+ B(306,-7,2,2,7,0x6b4a2a);{const t=new THREE.Mesh(new THREE.SphereGeometry(4.6,10,8),Mt(0x3f9e4a));t.position.set(306,9,-7);t.castShadow=true;scene.add(t)}
+ B(294,-8,5,5,3.5,0xc0504d);B(294,-5.45,1.8,.1,2,0x1a1210,{s:false});{const r=new THREE.Mesh(new THREE.ConeGeometry(4.2,2.2,4),Mt(0x8a3a30));r.position.set(294,4.6,-8);r.rotation.y=Math.PI/4;scene.add(r)}
+ [[306,6],[309,2.5],[291,-1]].forEach(([x,z])=>{Cy(x,.7,z,.8,1.4,0xc2703a,10);[-.3,.3].forEach((d,i)=>{const f=new THREE.Mesh(new THREE.SphereGeometry(.45,6,5),Mt([0xff5f8a,0xffd23f][i]));f.position.set(x+d,1.9,z);scene.add(f)});S.push([x-.8,x+.8,z-.8,z+.8])});
+ Cy(300,1,0,.5,2,0xb9b9c4,8);Cy(300,2.1,0,1.6,.4,0xb9b9c4,12);S.push([299.4,300.6,-.6,.6]);
+ [[292,6],[310,9]].forEach(([x,z])=>{const b=new THREE.Mesh(new THREE.SphereGeometry(2.2,8,6),Mt(0x2f8a3a));b.position.set(x,1.6,z);b.castShadow=true;scene.add(b);addHZ(3,x,z)});
+ Cy(303,.9,9,.5,1.8,0x4a7bd0,8);{const hat=new THREE.Mesh(new THREE.ConeGeometry(.6,1.2,8),Mt(0xd6392f));hat.position.set(303,2.4,9);scene.add(hat)}S.push([302.4,303.6,8.4,9.6]);
+ mkPortal(3,300,13.85,Math.PI,0x6ee27a,'To house',0,-3.2,0,-21.5,12)}
 /* house portals to the new maps */
 mkPortal(0,23.9,-16,-Math.PI/2,0xffc83d,'Kitchen',-3.2,0,1,89.2,11.5);
 mkPortal(0,17,23.9,Math.PI,0xb48cff,'Attic',0,-3.2,2,210.9,0);
@@ -243,29 +242,29 @@ mkPortal(0,-23.9,12,Math.PI/2,0x6ee27a,'Backyard',3.2,0,3,300,11);
 room(MAPS[4],0xc9b79a,3);mkPortal(4,400,9.85,Math.PI,0xffc83d,'Leave',0,-2.8,0,-21,-6);label('Upgrade cart',400,-5.5);
 let homeG=null;
 function buildHome(){if(homeG)scene.remove(homeG);homeG=new THREE.Group();scene.add(homeG);const o=G.owned,ox=400;
-const hb=(x,z,w,d,h,c,y=0)=>{const m=new THREE.Mesh(new THREE.BoxGeometry(w,h,d),Mt(c));m.position.set(ox+x,y+h/2,z);m.castShadow=m.receiveShadow=true;homeG.add(m)};
-hb(0,-9.7,19.4,.2,3,o.includes(1)?0xffd75e:0xcdbb9c);
-if(o.includes(1))for(let k=0;k<6;k++)hb(-8+k*3.2,-9.55,1,.1,1,0xd89a10,.9+(k%2));
-hb(0,-8,3,.5,3,0xc9a46a);hb(0,-8,2.6,.55,.9,0xffc83d,3);
-if(o.includes(0)){hb(-6,-5,4,6,.8,0xc8a26a);hb(-6,-7.4,2.4,1.2,.5,0xffb6c8,.8);hb(-6,-3.6,4,3,.3,0x5b7fd6,.8)}else hb(-6,-5,3,2,.15,0xe4e0d0);
-if(o.includes(2)){hb(7.6,-6,2.6,2.6,5.4,0xffffff);hb(6.2,-6,.15,.2,2,0x999999,1.6);hb(7.6,-4.65,2.6,.1,.1,0x999999,3)}
-if(o.includes(3)){const a=new THREE.Mesh(new THREE.CylinderGeometry(3.8,3.8,.4,24),Mt(0xffe9a8));a.position.set(ox+5,.2,4);homeG.add(a);const w=new THREE.Mesh(new THREE.CylinderGeometry(3.4,3.4,.5,24),Mt(0x4fd0e8));w.position.set(ox+5,.25,4);homeG.add(w)}
-if(o.includes(4)){hb(-6,6,2.6,2.6,1.6,0xf2b705);hb(-6,7.2,2.6,.5,4.2,0xf2b705);hb(-6,6,1.9,1.9,.4,0xc0392b,1.6)}
-if(o.includes(5)){hb(0,0,3,18,.06,0xb0202e);[[-9,-9],[9,-9],[-9,9],[9,9]].forEach(([x,z])=>hb(x,z,1.2,1.2,3,0xf2b705))}}
+ const hb=(x,z,w,d,h,c,y=0)=>{const m=new THREE.Mesh(new THREE.BoxGeometry(w,h,d),Mt(c));m.position.set(ox+x,y+h/2,z);m.castShadow=m.receiveShadow=true;homeG.add(m)};
+ hb(0,-9.7,19.4,.2,3,o.includes(1)?0xffd75e:0xcdbb9c);
+ if(o.includes(1))for(let k=0;k<6;k++)hb(-8+k*3.2,-9.55,1,.1,1,0xd89a10,.9+(k%2));
+ hb(0,-8,3,.5,3,0xc9a46a);hb(0,-8,2.6,.55,.9,0xffc83d,3);
+ if(o.includes(0)){hb(-6,-5,4,6,.8,0xc8a26a);hb(-6,-7.4,2.4,1.2,.5,0xffb6c8,.8);hb(-6,-3.6,4,3,.3,0x5b7fd6,.8)}else hb(-6,-5,3,2,.15,0xe4e0d0);
+ if(o.includes(2)){hb(7.6,-6,2.6,2.6,5.4,0xffffff);hb(6.2,-6,.15,.2,2,0x999999,1.6);hb(7.6,-4.65,2.6,.1,.1,0x999999,3)}
+ if(o.includes(3)){const a=new THREE.Mesh(new THREE.CylinderGeometry(3.8,3.8,.4,24),Mt(0xffe9a8));a.position.set(ox+5,.2,4);homeG.add(a);const w=new THREE.Mesh(new THREE.CylinderGeometry(3.4,3.4,.5,24),Mt(0x4fd0e8));w.position.set(ox+5,.25,4);homeG.add(w)}
+ if(o.includes(4)){hb(-6,6,2.6,2.6,1.6,0xf2b705);hb(-6,7.2,2.6,.5,4.2,0xf2b705);hb(-6,6,1.9,1.9,.4,0xc0392b,1.6)}
+ if(o.includes(5)){hb(0,0,3,18,.06,0xb0202e);[[-9,-9],[9,-9],[-9,9],[9,9]].forEach(([x,z])=>hb(x,z,1.2,1.2,3,0xf2b705))}}
 /* cat for the outer maps */
 const cat=new THREE.Group();{const b=(w,h,d,c,x,y,z)=>{const m=new THREE.Mesh(new THREE.BoxGeometry(w,h,d),Mt(c));m.position.set(x,y,z);m.castShadow=true;cat.add(m)};
-b(1.8,1.8,3.6,0xe58a2e,0,1.7,0);b(1.6,1.5,1.5,0xe58a2e,0,2.3,2.3);b(.4,.6,.3,0xe58a2e,-.5,3.3,2.2);b(.4,.6,.3,0xe58a2e,.5,3.3,2.2);b(.35,.35,.1,0x111111,-.4,2.5,3.05);b(.35,.35,.1,0x111111,.4,2.5,3.05);b(.5,.5,.1,0xff8fa0,0,2.1,3.08);b(.5,.5,2.2,0xe58a2e,0,2.6,-2.4);
-[[-.6,1.4],[.6,1.4],[-.6,-1.4],[.6,-1.4]].forEach(([x,z])=>b(.5,1,.5,0xc97626,x,.5,z))}
+ b(1.8,1.8,3.6,0xe58a2e,0,1.7,0);b(1.6,1.5,1.5,0xe58a2e,0,2.3,2.3);b(.4,.6,.3,0xe58a2e,-.5,3.3,2.2);b(.4,.6,.3,0xe58a2e,.5,3.3,2.2);b(.35,.35,.1,0x111111,-.4,2.5,3.05);b(.35,.35,.1,0x111111,.4,2.5,3.05);b(.5,.5,.1,0xff8fa0,0,2.1,3.08);b(.5,.5,2.2,0xe58a2e,0,2.6,-2.4);
+ [[-.6,1.4],[.6,1.4],[-.6,-1.4],[.6,-1.4]].forEach(([x,z])=>b(.5,1,.5,0xc97626,x,.5,z))}
 cat.visible=false;scene.add(cat);const catS={tx:0,tz:0,wait:0};
 function catPick(){const r=MAPS[cur].h-3;catS.tx=MAPS[cur].ox+rnd(-r,r);catS.tz=rnd(-r,r);catS.wait=rnd(.5,2)}
 function spawnMaps(){[[1,8,2,2,2],[2,5,3,0,2],[3,7,1,1,2]].forEach(([m,c,w,p,hc])=>{const R0={x:MAPS[m].ox,z:0};
-for(let i=0;i<c;i++)mkItem('cheese',...spot(R0));for(let i=0;i<w;i++)mkItem('wheel',...spot(R0));for(let i=0;i<p;i++)mkItem('pizza',...spot(R0));
-MZ[m].slice(0,hc).forEach(([x,z])=>mkItem('hidden',x+rnd(-.5,.5),z+rnd(-.5,.5)))})}
+ for(let i=0;i<c;i++)mkItem('cheese',...spot(R0));for(let i=0;i<w;i++)mkItem('wheel',...spot(R0));for(let i=0;i<p;i++)mkItem('pizza',...spot(R0));
+ MZ[m].slice(0,hc).forEach(([x,z])=>mkItem('hidden',x+rnd(-.5,.5),z+rnd(-.5,.5)))})}
 function go(m,x,z){if(chase){chase=false;$('flash').style.opacity=0;sus=Math.max(sus,40)}
-cur=m;mouse.position.set(x,0,z);graceT=3;hiddenT=0;plock=true;cam.position.set(x,12,z+12);
-if(m===0&&Math.hypot(H.position.x-x,H.position.z-z)<14){H.position.set(x>0?-12:12,0,z>0?-12:12);pick()}
-cat.visible=m>=1&&m<=3;if(cat.visible){cat.position.set(MAPS[m].ox+(x>MAPS[m].ox?-8:8),0,z>0?-8:8);catPick()}
-toast(m===4?'Home sweet home! Visit the upgrade cart.':m?MAPS[m].n+(m<4?' (watch out for the cat!)':''):'Back in the house')}
+ cur=m;mouse.position.set(x,0,z);graceT=3;hiddenT=0;plock=true;cam.position.set(x,12,z+12);
+ if(m===0&&Math.hypot(H.position.x-x,H.position.z-z)<14){H.position.set(x>0?-12:12,0,z>0?-12:12);pick()}
+ cat.visible=m>=1&&m<=3;if(cat.visible){cat.position.set(MAPS[m].ox+(x>MAPS[m].ox?-8:8),0,z>0?-8:8);catPick()}
+ toast(m===4?'Home sweet home! Visit the upgrade cart.':m?MAPS[m].n+(m<4?' (watch out for the cat!)':''):'Back in the house')}
 if(!G.choc)mkItem('choc',20.5,-20.5);
 if(!G.big)mkItem('big',5.5,15);
 spawnDay();buildHome();
@@ -273,25 +272,26 @@ spawnDay();buildHome();
 /* ---------- ui helpers ---------- */
 function toast(t){const e=$('toast');e.textContent=t;e.style.opacity=1;clearTimeout(toastT);toastT=setTimeout(()=>e.style.opacity=0,2200)}
 function pop(t){const v=mouse.position.clone();v.y=3;v.project(cam);const e=document.createElement('div');e.className='pop';e.textContent=t;e.style.left=(v.x*.5+.5)*innerWidth+'px';e.style.top=(-v.y*.5+.5)*innerHeight+'px';document.body.appendChild(e);setTimeout(()=>e.remove(),1200)}
-function earn(n,msg){G.money+=n;G.life+=n;dayEarn+=n;pop('+'+fmt(n));if(msg)toast(msg);checkMis();save()}
+const EARN=2;
+function earn(n,msg){n*=EARN;G.money+=n;G.life+=n;dayEarn+=n;pop('+'+fmt(n));if(msg)toast(msg);checkMis();save()}
 function checkMis(){MIS.forEach((m,i)=>{if(!G.done.includes(i)&&m[1]()){G.done.push(i);D.m.push(m[0]);G.money+=200;G.life+=200;dayEarn+=200;toast('Mission complete: '+m[0]+' +$200');save()}})}
 function rank(){const o=G.owned;return o.includes(5)?'Mouse KING 👑':o.includes(3)?'Mouse Millionaire':G.life>=1000?'Cheese Collector':o.includes(0)?'House Mouse':'Homeless Mouse'}
 function sec(t){return Math.ceil(t)+'s'}
 function panel(html){const p=$('panel');p.innerHTML=html;p.classList.remove('hide')}
 function closePanel(){$('panel').classList.add('hide')}
 function shop(){
-const nextHint=G.owned.includes(0)?'':'Find somewhere to sleep: buy a cardboard bed.';
-panel('<h2>Your tiny home</h2><div style="font-weight:700">'+rank()+' · '+fmt(G.money)+'</div><small>'+nextHint+'</small>'+
-  UPG.map((u,i)=>{const own=G.owned.includes(i);return '<div class="row"><div>'+u[0]+'<small>'+fmt(u[1])+'</small></div><button data-b="'+i+'" '+(own||G.money<u[1]?'disabled':'')+'>'+(own?'Owned':'Buy')+'</button></div>'}).join('')+
-  '<div class="row"><span></span><button data-x="1">Close</button></div>');
+ const nextHint=G.owned.includes(0)?'':'Find somewhere to sleep: buy a cardboard bed.';
+ panel('<h2>Your tiny home</h2><div style="font-weight:700">'+rank()+'</div><div>Carrying '+fmt(G.money)+' · Bank '+fmt(G.bank)+'</div><small>'+nextHint+'</small>'+
+  UPG.map((u,i)=>{const own=G.owned.includes(i);return '<div class="row"><div>'+u[0]+'<small>'+fmt(u[1])+'</small></div><button data-b="'+i+'" '+(own||G.money+G.bank<u[1]?'disabled':'')+'>'+(own?'Owned':'Buy')+'</button></div>'}).join('')+
+  '<div class="row"><span></span><button data-x="1">Close</button></div>');
 }
 function missions(){
-panel('<h2>Missions</h2><small>Each one pays $200.</small>'+MIS.map((m,i)=>{const d=G.done.includes(i);return '<div class="row"><div>'+(d?'✅ ':'⬜ ')+m[0]+'<small>'+(d?'Done':HINT[i])+'</small></div></div>'}).join('')+
-  '<div class="row"><button data-r="1" style="font-size:13px;padding:4px 10px">Reset save</button><button data-x="1">Close</button></div>');
+ panel('<h2>Missions</h2><small>Each one pays $200.</small>'+MIS.map((m,i)=>{const d=G.done.includes(i);return '<div class="row"><div>'+(d?'✅ ':'⬜ ')+m[0]+'<small>'+(d?'Done':HINT[i])+'</small></div></div>'}).join('')+
+  '<div class="row"><button data-r="1" style="font-size:13px;padding:4px 10px">Reset save</button><button data-x="1">Close</button></div>');
 }
 $('panel').addEventListener('click',e=>{const t=e.target;if(t.dataset.x)closePanel();if(t.dataset.c){paused=false;closePanel()}
-if(t.dataset.b!==undefined){const i=+t.dataset.b,u=UPG[i];if(G.money>=u[1]&&!G.owned.includes(i)){G.money-=u[1];G.owned.push(i);refreshHome();save();toast(u[0]+' bought!');shop()}}
-if(t.dataset.r&&confirm('Erase all progress?')){try{localStorage.removeItem('mousemansion')}catch(x){}location.reload()}});
+ if(t.dataset.b!==undefined){const i=+t.dataset.b,u=UPG[i];if(G.money+G.bank>=u[1]&&!G.owned.includes(i)){const fromW=Math.min(G.money,u[1]);G.money-=fromW;G.bank-=u[1]-fromW;G.owned.push(i);refreshHome();save();toast(u[0]+' bought!');shop()}}
+ if(t.dataset.r&&confirm('Erase all progress?')){try{localStorage.removeItem('mousemansion')}catch(x){}location.reload()}});
 const togglePanel=f=>{if(paused)return;const p=$('panel');if(p.classList.contains('hide'))f();else closePanel()};
 
 /* ---------- input ---------- */
@@ -301,8 +301,8 @@ addEventListener('keyup',e=>K[e.code]=0);
 let camYaw=0,camPit=.85;const ptr={};
 ren.domElement.addEventListener('pointerdown',e=>{ptr[e.pointerId]={mv:e.pointerType==='touch'&&e.clientX<innerWidth*.5,x:e.clientX,y:e.clientY}});
 addEventListener('pointermove',e=>{const p=ptr[e.pointerId];if(!p)return;
-if(p.mv){const dx=(e.clientX-p.x)/50,dy=(e.clientY-p.y)/50,l=Math.hypot(dx,dy);joy=l>.15?{x:dx/Math.max(l,1),z:dy/Math.max(l,1)}:{x:0,z:0}}
-else{camYaw-=(e.clientX-p.x)*.006;camPit=Math.max(.12,Math.min(1.45,camPit+(e.clientY-p.y)*.005));p.x=e.clientX;p.y=e.clientY}});
+ if(p.mv){const dx=(e.clientX-p.x)/50,dy=(e.clientY-p.y)/50,l=Math.hypot(dx,dy);joy=l>.15?{x:dx/Math.max(l,1),z:dy/Math.max(l,1)}:{x:0,z:0}}
+ else{camYaw-=(e.clientX-p.x)*.006;camPit=Math.max(.12,Math.min(1.45,camPit+(e.clientY-p.y)*.005));p.x=e.clientX;p.y=e.clientY}});
 const endP=e=>{const p=ptr[e.pointerId];if(p&&p.mv)joy={x:0,z:0};delete ptr[e.pointerId]};
 addEventListener('pointerup',endP);addEventListener('pointercancel',endP);
 $('bPoop').onclick=()=>poop();$('bShop').onclick=()=>{started&&togglePanel(shop)};$('bMis').onclick=()=>{started&&togglePanel(missions)};
@@ -310,8 +310,8 @@ $('go').onclick=()=>{$('intro').classList.add('hide');started=true;toast('Find c
 
 const trail=[];
 function poop(){if(!started||paused||pCool>0)return;if(cur===4){toast('No surprises at home!');return}if(homeD(mouse.position.x,mouse.position.z)<SAFE){toast('No surprises in your safe zone!');return}pCool=15;const d=new THREE.Vector3(Math.sin(mouse.rotation.y),0,Math.cos(mouse.rotation.y));
-const p=new THREE.Mesh(new THREE.SphereGeometry(.28,6,5),Mt(0x5a3a22));p.scale.y=.7;p.position.copy(mouse.position).addScaledVector(d,-.9);p.position.y=.2;scene.add(p);trail.push(p);if(trail.length>40)scene.remove(trail.shift());
-G.poop++;D.poop++;if(cur===0)sus=Math.min(100,sus+8);earn(5,'💩 A little surprise')}
+ const p=new THREE.Mesh(new THREE.SphereGeometry(.28,6,5),Mt(0x5a3a22));p.scale.y=.7;p.position.copy(mouse.position).addScaledVector(d,-.9);p.position.y=.2;scene.add(p);trail.push(p);if(trail.length>40)scene.remove(trail.shift());
+ G.poop++;D.poop++;if(cur===0)sus=Math.min(100,sus+8);earn(5,'💩 A little surprise')}
 
 /* ---------- game logic ---------- */
 const roomOf=(x,z)=>(x<0?0:1)+(z<0?0:2);
@@ -322,96 +322,99 @@ function pick(){const r=lvl>=3&&Math.random()<.5?R[roomOf(mouse.position.x,mouse
 function losBlocked(ax,az,bx,bz){const n=Math.ceil(Math.hypot(bx-ax,bz-az)/1.2);for(let i=1;i<n;i++){const x=ax+(bx-ax)*i/n,z=az+(bz-az)*i/n;if(W.some(w=>x>w[0]&&x<w[1]&&z>w[2]&&z<w[3]))return true}return false}
 function spotted(w){chase=true;caught=true;G.stealth=0;sus=100;hs.wait=0;toast(w||'Mouse spotted! Run to your hole!');$('flash').style.opacity=1}
 function escaped(){chase=false;sus=45;graceT=4;hs.wait=0;pick();toast('Phew, you made it home!');$('flash').style.opacity=0}
-function gotCaught(){const loss=Math.floor(G.money*.25);G.money-=loss;D.caught++;go(0,-21,-6);H.position.set(14,0,14);graceT=6;chase=false;sus=30;pick();toast('Caught! You dropped '+fmt(loss));$('flash').style.opacity=0;save()}
-function newDay(){if(!caught)earn(50);const r=(a,b)=>'<div class="row"><div>'+a+'</div><b>'+b+'</b></div>';const nx=UPG.findIndex((u,i)=>!G.owned.includes(i));
-panel('<h2>Day '+G.day+' complete</h2>'+r('Result',caught?'Spotted today':'Survived +$50')+r('Money earned',fmt(dayEarn))+r('Cheese eaten',D.cheese)+r('Surprises left','💩 '+D.poop)+r('Hidden snacks found',D.hid)+r('Times caught',D.caught)+r('Missions done',D.m.length?D.m.join(', '):'None')+r('In the bank',fmt(G.money))+r('Rank',rank())+
-  r('Next upgrade',nx>=0?UPG[nx][0]+' ('+fmt(Math.max(0,UPG[nx][1]-G.money))+' to go)':'Everything owned!')+'<div class="row"><span></span><button data-c="1">Start day '+(G.day+1)+'</button></div>');
-paused=true;G.day++;dayEarn=0;dayT=120;caught=false;D={cheese:0,poop:0,hid:0,caught:0,m:[]};spawnDay();save()}
+function gotCaught(){const loss=Math.floor(G.money*.2);G.money-=loss;D.caught++;go(0,-21,-6);H.position.set(14,0,14);graceT=6;chase=false;sus=30;pick();toast('Caught! You dropped '+fmt(loss));$('flash').style.opacity=0;save()}
+function newDay(){if(!caught)earn(50);const dep=G.money;G.bank+=dep;G.money=0;const r=(a,b)=>'<div class="row"><div>'+a+'</div><b>'+b+'</b></div>';const nx=UPG.findIndex((u,i)=>!G.owned.includes(i));
+ panel('<h2>Day '+G.day+' complete</h2>'+r('Result',caught?'Spotted today':'Survived +$50')+r('Money earned',fmt(dayEarn))+r('Deposited in the bank',fmt(dep))+r('Cheese eaten',D.cheese)+r('Surprises left','💩 '+D.poop)+r('Hidden snacks found',D.hid)+r('Times caught',D.caught)+r('Missions done',D.m.length?D.m.join(', '):'None')+r('Bank balance (safe)',fmt(G.bank))+r('Rank',rank())+
+  r('Next upgrade',nx>=0?UPG[nx][0]+' ('+fmt(Math.max(0,UPG[nx][1]-G.bank-G.money))+' to go)':'Everything owned!')+'<div class="row"><span></span><button data-c="1">Start day '+(G.day+1)+'</button></div>');
+ paused=true;G.day++;dayEarn=0;dayT=120;caught=false;D={cheese:0,poop:0,hid:0,caught:0,m:[]};spawnDay();save()}
 
 let last=performance.now(),tt=0,rotH=0;
 function frame(now){requestAnimationFrame(frame);try{frame2(now)}catch(e){err(e)}}
 function frame2(now){const dt=paused?0:Math.min(.05,(now-last)/1000);last=now;tt+=dt;
-const mp=mouse.position;
-/* movement */
-let ix=(K.KeyD||K.ArrowRight?1:0)-(K.KeyA||K.ArrowLeft?1:0)+joy.x,iz=(K.KeyS||K.ArrowDown?1:0)-(K.KeyW||K.ArrowUp?1:0)+joy.z;
-const il=Math.hypot(ix,iz);if(il>1){ix/=il;iz/=il}
-const moving=started&&il>.1&&$('panel').classList.contains('hide');
-camYaw+=((K.KeyQ?1:0)-(K.KeyR?1:0))*2*dt;
-if(moving){const sy=Math.sin(camYaw),cy=Math.cos(camYaw),wx=ix*cy+iz*sy,wz=-ix*sy+iz*cy;mp.x+=wx*8*dt;mp.z+=wz*8*dt;mouse.rotation.y=Math.atan2(wx,wz)}
-{const m=cur?MAPS[cur]:{ox:0,h:24},r=m.h-.6;mp.x=Math.max(m.ox-r,Math.min(m.ox+r,mp.x));mp.z=Math.max(-r,Math.min(r,mp.z))}
-for(let ps=0;ps<2;ps++)for(const b of S){const r=.5;if(mp.x>b[0]-r&&mp.x<b[1]+r&&mp.z>b[2]-r&&mp.z<b[3]+r){const l=mp.x-(b[0]-r),rr=b[1]+r-mp.x,u=mp.z-(b[2]-r),dn=b[3]+r-mp.z,m=Math.min(l,rr,u,dn);
-   if(m===l)mp.x=b[0]-r;else if(m===rr)mp.x=b[1]+r;else if(m===u)mp.z=b[2]-r;else mp.z=b[3]+r}}
-mp.y=moving?Math.abs(Math.sin(tt*16))*.14:0;tail.rotation.y=Math.sin(tt*(moving?18:4))*.5;
-const hid=hiding(mp);mouseMats.forEach(m=>m.opacity=hid?.4:1);
+ const mp=mouse.position;
+ /* movement */
+ let ix=(K.KeyD||K.ArrowRight?1:0)-(K.KeyA||K.ArrowLeft?1:0)+joy.x,iz=(K.KeyS||K.ArrowDown?1:0)-(K.KeyW||K.ArrowUp?1:0)+joy.z;
+ const il=Math.hypot(ix,iz);if(il>1){ix/=il;iz/=il}
+ const moving=started&&il>.1&&$('panel').classList.contains('hide');
+ camYaw+=((K.KeyQ?1:0)-(K.KeyR?1:0))*2*dt;
+ if(moving){const sy=Math.sin(camYaw),cy=Math.cos(camYaw),wx=ix*cy+iz*sy,wz=-ix*sy+iz*cy;mp.x+=wx*8*dt;mp.z+=wz*8*dt;mouse.rotation.y=Math.atan2(wx,wz)}
+ {const m=cur?MAPS[cur]:{ox:0,h:24},r=m.h-.6;mp.x=Math.max(m.ox-r,Math.min(m.ox+r,mp.x));mp.z=Math.max(-r,Math.min(r,mp.z))}
+ for(let ps=0;ps<3;ps++)for(const b of S){const r=.45,qx=Math.max(b[0],Math.min(mp.x,b[1])),qz=Math.max(b[2],Math.min(mp.z,b[3])),dx=mp.x-qx,dz=mp.z-qz,d2=dx*dx+dz*dz;
+  if(d2>=r*r)continue;
+  if(d2>1e-6){const d=Math.sqrt(d2);mp.x=qx+dx/d*r;mp.z=qz+dz/d*r}
+  else{const l=mp.x-b[0],rr=b[1]-mp.x,u=mp.z-b[2],dn=b[3]-mp.z,m=Math.min(l,rr,u,dn);
+   if(m===l)mp.x=b[0]-r;else if(m===rr)mp.x=b[1]+r;else if(m===u)mp.z=b[2]-r;else mp.z=b[3]+r}}
+ mp.y=moving?Math.abs(Math.sin(tt*16))*.14:0;tail.rotation.y=Math.sin(tt*(moving?18:4))*.5;
+ const hid=hiding(mp);mouseMats.forEach(m=>m.opacity=hid?.4:1);
 
-if(started){
-  pCool-=dt;graceT-=dt;
-  /* items */
-  for(let i=items.length-1;i>=0;i--){const it=items[i],d=Math.hypot(mp.x-it.x,mp.z-it.z);
-   if(it.t==='hidden'||it.t==='choc')it.m.visible=d<8;
-   it.m.rotation.y+=dt;it.m.position.y=it.y+Math.sin(tt*3+i)*.1;
-   if(d<(it.t==='big'||it.t==='wheel'?2.4:1.5)){const v=T[it.t];scene.remove(it.m);items.splice(i,1);
-    if(it.t==='cheese'||it.t==='wheel'){G.cheese++;D.cheese++}if(it.t==='hidden')D.hid++;if(it.t==='choc')G.choc=1;if(it.t==='big')G.big=1;
-    if(cur===0)sus=Math.min(100,sus+(it.t==='hidden'?10:14));earn(v.v,v.m)}}
-  if(cur===0){/* human */
-  lvl=chase?4:sus<25?1:sus<55?2:3;
-  const sp=[2.5,3.6,5,7][lvl-1];
-  let tx=hs.tx,tz=hs.tz;if(chase){tx=mp.x;tz=mp.z}
-  const dx=tx-H.position.x,dz=tz-H.position.z,dd=Math.hypot(dx,dz);
-  let walking=false;
-  if(!chase&&hs.wait>0)hs.wait-=dt;
-  else if(dd>1.2){H.position.x+=dx/dd*sp*dt;H.position.z+=dz/dd*sp*dt;walking=true;
-   let a=Math.atan2(dx,dz)-H.rotation.y;a=Math.atan2(Math.sin(a),Math.cos(a));H.rotation.y+=a*Math.min(1,dt*6)}
-  else if(!chase)pick();
-  {const hx=H.position.x-HOLE.x,hz=H.position.z-HOLE.z,hh=Math.hypot(hx,hz),ko=SAFE+4;if(hh<ko){const k=ko/(hh||1);H.position.x=HOLE.x+hx*k;H.position.z=HOLE.z+hz*k}}
-  const sw=walking?Math.sin(tt*sp*1.6)*.6:0;legL.rotation.x=sw;legR.rotation.x=-sw;armL.rotation.x=-sw;armR.rotation.x=sw;
-  H.position.y=walking?Math.abs(Math.sin(tt*sp*1.6))*.25:0;
-  /* spotting */
-  const vx=mp.x-H.position.x,vz=mp.z-H.position.z,vd=Math.hypot(vx,vz)||1;
-  const cosA=(vx*Math.sin(H.rotation.y)+vz*Math.cos(H.rotation.y))/vd;
-  const home=homeD(mp.x,mp.z)<SAFE;
-  const see=!hid&&!home&&graceT<=0&&!losBlocked(H.position.x,H.position.z,mp.x,mp.z);
-  if(!chase&&see&&((vd<7+lvl*3&&cosA>.45)||vd<3.5))spotted();
-  if(chase){hiddenT=hid?hiddenT+dt:0;
-   if(hiddenT>2.5&&vd>5){chase=false;sus=50;pick();toast('You lost him. Stay low.');$('flash').style.opacity=0}
-   else if(home)escaped();
-   else if(vd<2.8&&graceT<=0)gotCaught()}
-  sus=Math.max(0,sus-(chase?0:home?4:1.5)*dt);
-  }else if(cur<4){
-   const m=MAPS[cur],cx=mp.x-cat.position.x,cz=mp.z-cat.position.z,cd=Math.hypot(cx,cz)||1;let tx=catS.tx,tz=catS.tz,sp=3;if(chase){tx=mp.x;tz=mp.z;sp=6.8}
-   const dx=tx-cat.position.x,dz=tz-cat.position.z,dd=Math.hypot(dx,dz);
-   if(!chase&&catS.wait>0)catS.wait-=dt;
-   else if(dd>1){cat.position.x+=dx/dd*sp*dt;cat.position.z+=dz/dd*sp*dt;let a=Math.atan2(dx,dz)-cat.rotation.y;a=Math.atan2(Math.sin(a),Math.cos(a));cat.rotation.y+=a*Math.min(1,dt*8);cat.position.y=Math.abs(Math.sin(tt*sp*3))*.3}
-   else if(!chase)catPick();
-   {const r=m.h-2.5;cat.position.x=Math.max(m.ox-r,Math.min(m.ox+r,cat.position.x));cat.position.z=Math.max(-r,Math.min(r,cat.position.z))}
-   lvl=chase?4:cd<14?2:1;catWarn=chase?100:cd<14?55:8;
-   const see=!hid&&graceT<=0&&cd<12&&((cx*Math.sin(cat.rotation.y)+cz*Math.cos(cat.rotation.y))/cd>.3||cd<5);
-   if(!chase&&see)spotted('The cat spotted you! Run for a mouse hole!');
-   if(chase){hiddenT=hid?hiddenT+dt:0;
-    if(hiddenT>2.5&&cd>5){chase=false;catPick();toast('The cat lost you.');$('flash').style.opacity=0}
-    else if(cd<2&&graceT<=0)gotCaught()}
-  }else{lvl=1;catWarn=0}
-  {const near=P.find(q=>q.f===cur&&Math.hypot(mp.x-q.x,mp.z-q.z)<1.6);
-   if(near&&!plock)go(near.m,near.tx,near.tz);
-   if(!P.some(q=>q.f===cur&&Math.hypot(mp.x-q.x,mp.z-q.z)<3.6))plock=false;
-   const cd2=Math.hypot(mp.x-400,mp.z+8);
-   if(cur===4&&cd2<2&&!slock&&$('panel').classList.contains('hide')){slock=true;shop()}
-   if(cur!==4||cd2>3.5)slock=false}
-  /* time */
-  if(!chase&&cur!==4)G.stealth+=dt;
-  if(cur!==4)dayT-=dt;if(dayT<=0)newDay();
-  if(Math.floor(tt*2)%20===0)checkMis();
-}
-/* hud */
-$('money').textContent=fmt(G.money);$('rank').textContent=rank();
-$('alv').textContent='Level '+lvl+': '+['Relaxed','Suspicious','Investigating','Mouse spotted!'][lvl-1]+(cur&&cur<4?' 🐱':'');
-const sf=$('susf');sf.style.width=(chase?100:cur?catWarn:sus)+'%';sf.style.background=['#5fd0b0','#ffc83d','#f08a24','#e8483a'][lvl-1];
-{const bp=$('bPoop');bp.textContent=pCool>0?'💩 '+Math.ceil(pCool)+'s':'💩 Surprise';bp.disabled=pCool>0}
-$('day').textContent='Day '+G.day+' · '+sec(dayT);
-const ri=roomOf(mp.x,mp.z);$('room').textContent=hid?'Hiding 🫥':cur?MAPS[cur].n:R[ri].n;
-/* camera */
-{const D=18,cp=Math.cos(camPit);cam.position.lerp(new THREE.Vector3(mp.x+Math.sin(camYaw)*cp*D,Math.sin(camPit)*D+.5,mp.z+Math.cos(camYaw)*cp*D),Math.min(1,dt*10));cam.lookAt(mp.x,.8,mp.z)}
-ren.render(scene,cam);
+ if(started){
+  pCool-=dt;graceT-=dt;
+  /* items */
+  for(let i=items.length-1;i>=0;i--){const it=items[i],d=Math.hypot(mp.x-it.x,mp.z-it.z);
+   if(it.t==='hidden'||it.t==='choc')it.m.visible=d<8;
+   it.m.rotation.y+=dt;it.m.position.y=it.y+Math.sin(tt*3+i)*.1;
+   if(d<(it.t==='big'||it.t==='wheel'?2.4:1.5)){const v=T[it.t];scene.remove(it.m);items.splice(i,1);
+    if(it.t==='cheese'||it.t==='wheel'){G.cheese++;D.cheese++}if(it.t==='hidden')D.hid++;if(it.t==='choc')G.choc=1;if(it.t==='big')G.big=1;
+    if(cur===0)sus=Math.min(100,sus+(it.t==='hidden'?10:14));earn(v.v,v.m)}}
+  if(cur===0){/* human */
+  lvl=chase?4:sus<25?1:sus<55?2:3;
+  const sp=[2.5,3.6,5,7][lvl-1];
+  let tx=hs.tx,tz=hs.tz;if(chase){tx=mp.x;tz=mp.z}
+  const dx=tx-H.position.x,dz=tz-H.position.z,dd=Math.hypot(dx,dz);
+  let walking=false;
+  if(!chase&&hs.wait>0)hs.wait-=dt;
+  else if(dd>1.2){H.position.x+=dx/dd*sp*dt;H.position.z+=dz/dd*sp*dt;walking=true;
+   let a=Math.atan2(dx,dz)-H.rotation.y;a=Math.atan2(Math.sin(a),Math.cos(a));H.rotation.y+=a*Math.min(1,dt*6)}
+  else if(!chase)pick();
+  {const hx=H.position.x-HOLE.x,hz=H.position.z-HOLE.z,hh=Math.hypot(hx,hz),ko=SAFE+4;if(hh<ko){const k=ko/(hh||1);H.position.x=HOLE.x+hx*k;H.position.z=HOLE.z+hz*k}}
+  const sw=walking?Math.sin(tt*sp*1.6)*.6:0;legL.rotation.x=sw;legR.rotation.x=-sw;armL.rotation.x=-sw;armR.rotation.x=sw;
+  H.position.y=walking?Math.abs(Math.sin(tt*sp*1.6))*.25:0;
+  /* spotting */
+  const vx=mp.x-H.position.x,vz=mp.z-H.position.z,vd=Math.hypot(vx,vz)||1;
+  const cosA=(vx*Math.sin(H.rotation.y)+vz*Math.cos(H.rotation.y))/vd;
+  const home=homeD(mp.x,mp.z)<SAFE;
+  const see=!hid&&!home&&graceT<=0&&!losBlocked(H.position.x,H.position.z,mp.x,mp.z);
+  if(!chase&&see&&((vd<7+lvl*3&&cosA>.45)||vd<3.5))spotted();
+  if(chase){hiddenT=hid?hiddenT+dt:0;
+   if(hiddenT>2.5&&vd>5){chase=false;sus=50;pick();toast('You lost him. Stay low.');$('flash').style.opacity=0}
+   else if(home)escaped();
+   else if(vd<2.8&&graceT<=0)gotCaught()}
+  sus=Math.max(0,sus-(chase?0:home?4:1.5)*dt);
+  }else if(cur<4){
+   const m=MAPS[cur],cx=mp.x-cat.position.x,cz=mp.z-cat.position.z,cd=Math.hypot(cx,cz)||1;let tx=catS.tx,tz=catS.tz,sp=3;if(chase){tx=mp.x;tz=mp.z;sp=6.8}
+   const dx=tx-cat.position.x,dz=tz-cat.position.z,dd=Math.hypot(dx,dz);
+   if(!chase&&catS.wait>0)catS.wait-=dt;
+   else if(dd>1){cat.position.x+=dx/dd*sp*dt;cat.position.z+=dz/dd*sp*dt;let a=Math.atan2(dx,dz)-cat.rotation.y;a=Math.atan2(Math.sin(a),Math.cos(a));cat.rotation.y+=a*Math.min(1,dt*8);cat.position.y=Math.abs(Math.sin(tt*sp*3))*.3}
+   else if(!chase)catPick();
+   {const r=m.h-2.5;cat.position.x=Math.max(m.ox-r,Math.min(m.ox+r,cat.position.x));cat.position.z=Math.max(-r,Math.min(r,cat.position.z))}
+   lvl=chase?4:cd<14?2:1;catWarn=chase?100:cd<14?55:8;
+   const see=!hid&&graceT<=0&&cd<12&&((cx*Math.sin(cat.rotation.y)+cz*Math.cos(cat.rotation.y))/cd>.3||cd<5);
+   if(!chase&&see)spotted('The cat spotted you! Run for a mouse hole!');
+   if(chase){hiddenT=hid?hiddenT+dt:0;
+    if(hiddenT>2.5&&cd>5){chase=false;catPick();toast('The cat lost you.');$('flash').style.opacity=0}
+    else if(cd<2&&graceT<=0)gotCaught()}
+  }else{lvl=1;catWarn=0}
+  {const near=P.find(q=>q.f===cur&&Math.hypot(mp.x-q.x,mp.z-q.z)<1.6);
+   if(near&&!plock)go(near.m,near.tx,near.tz);
+   if(!P.some(q=>q.f===cur&&Math.hypot(mp.x-q.x,mp.z-q.z)<3.6))plock=false;
+   const cd2=Math.hypot(mp.x-400,mp.z+8);
+   if(cur===4&&cd2<2&&!slock&&$('panel').classList.contains('hide')){slock=true;shop()}
+   if(cur!==4||cd2>3.5)slock=false}
+  /* time */
+  if(!chase&&cur!==4)G.stealth+=dt;
+  if(cur!==4)dayT-=dt;if(dayT<=0)newDay();
+  if(Math.floor(tt*2)%20===0)checkMis();
+ }
+ /* hud */
+ $('money').textContent=fmt(G.money);$('rank').textContent=rank()+' · Bank '+fmt(G.bank);
+ $('alv').textContent='Level '+lvl+': '+['Relaxed','Suspicious','Investigating','Mouse spotted!'][lvl-1]+(cur&&cur<4?' 🐱':'');
+ const sf=$('susf');sf.style.width=(chase?100:cur?catWarn:sus)+'%';sf.style.background=['#5fd0b0','#ffc83d','#f08a24','#e8483a'][lvl-1];
+ {const bp=$('bPoop');bp.textContent=pCool>0?'💩 '+Math.ceil(pCool)+'s':'💩 Surprise';bp.disabled=pCool>0}
+ $('day').textContent='Day '+G.day+' · '+sec(dayT);
+ const ri=roomOf(mp.x,mp.z);$('room').textContent=hid?'Hiding 🫥':cur?MAPS[cur].n:R[ri].n;
+ /* camera */
+ {const D=18,cp=Math.cos(camPit);cam.position.lerp(new THREE.Vector3(mp.x+Math.sin(camYaw)*cp*D,Math.sin(camPit)*D+.5,mp.z+Math.cos(camYaw)*cp*D),Math.min(1,dt*10));cam.lookAt(mp.x,.8,mp.z)}
+ ren.render(scene,cam);
 }
 cam.position.set(-21,13,7);requestAnimationFrame(frame);
 }catch(e){err(e)}
